@@ -67,36 +67,45 @@ class ArticlesRelationManager extends RelationManager
                     ->label('Crear Manualmente'),
 
                 Tables\Actions\Action::make('generate_ai')
-                    ->label('Generar con Gemini 2.5 Flash')
-                    ->icon('heroicon-o-bolt')
-                    ->color('warning')
+                    ->label('Generar Artículo SEO')
+                    ->icon('heroicon-o-sparkles')
+                    ->color('primary')
                     ->form([
                         Forms\Components\TextInput::make('topic')
                             ->label('¿Sobre qué quieres escribir?')
-                            ->placeholder('Ej: Estrategias de SEO 2026')
+                            ->placeholder('Ej: 5 Tips para mejorar tus ventas')
                             ->required(),
                         
                         Forms\Components\Select::make('tone')
-                            ->label('Tono')
+                            ->label('Tono de Voz')
                             ->options([
-                                'professional' => 'Profesional',
-                                'casual' => 'Casual',
-                                'persuasive' => 'Persuasivo',
-                                'informative' => 'Informativo',
+                                'expert' => 'Experto y Técnico (Para B2B)',
+                                'friendly' => 'Amigable y Cercano (Para B2C)',
+                                'persuasive' => 'Persuasivo y Vendedor',
+                                'informative' => 'Educativo y Neutral',
                             ])
-                            ->default('professional'),
+                            ->default('expert'),
+                            
+                        Forms\Components\Textarea::make('context_extra')
+                            ->label('Contexto Extra (Opcional)')
+                            ->placeholder('Ej: Enfócate en vender el servicio de auditoría...')
+                            ->rows(2),
                     ])
                     ->action(function (array $data, $livewire) {
-                        // 1. LA LÍNEA MÁGICA: Evita que el servidor mate el proceso
-                        set_time_limit(300); // 5 minutos de vida
+                        // Aumentar tiempo de ejecución para evitar timeouts
+                        set_time_limit(300);
                         ini_set('max_execution_time', 300); 
 
+                        // 1. OBTENER DATOS DEL PROYECTO (EL CLIENTE)
                         $project = $livewire->getOwnerRecord();
-                        
+                        $clienteNombre = $project->title ?? 'Nuestra Marca';
+                        $clienteUrl = $project->url ?? '#'; // Si tienes campo URL en la tabla projects
+                        $contextoExtra = $data['context_extra'] ?? '';
+
                         Notification::make()
-                            ->title('Gemini trabajando...')
-                            ->body('Generando contenido (esto puede tomar hasta 1 minuto)...')
-                            ->warning()
+                            ->title("Escribiendo para {$clienteNombre}...")
+                            ->body('Gemini está analizando tu marca y redactando...')
+                            ->info()
                             ->persistent()
                             ->send();
 
@@ -107,24 +116,36 @@ class ArticlesRelationManager extends RelationManager
                                 throw new \Exception('Falta la API KEY en .env');
                             }
 
+                            // 2. EL PROMPT DINÁMICO (LA CLAVE DEL ÉXITO)
                             $prompt = "
-                                Actúa como un experto SEO.
-                                Escribe un artículo sobre: '{$data['topic']}'.
-                                Tono: {$data['tone']}.
-                                Longitud: Extensa (+1000 palabras).
-                                Formato: HTML puro (h2, h3, p, ul, li). NO uses h1.
-                                Devuelve SOLO el HTML limpio.
+                                Actúa como el Redactor Oficial del blog de la marca: '{$clienteNombre}'.
+                                
+                                TUS OBJETIVOS:
+                                1. Escribir un artículo sobre: '{$data['topic']}'.
+                                2. Adaptar tu personalidad al nombre del negocio ('{$clienteNombre}'). Si suena a restaurante, sé apetitoso. Si suena a abogado, sé formal.
+                                3. Tono: {$data['tone']}.
+                                4. Contexto Adicional: {$contextoExtra}.
+
+                                REQUISITOS DE FORMATO:
+                                - Longitud: 700-900 palabras.
+                                - Formato: HTML limpio (h2, h3, p, ul, li, strong). NO uses h1.
+                                - Menciones: Menciona a '{$clienteNombre}' naturalmente en el texto.
+                                - Cierre: Termina con un párrafo invitando a visitar el sitio o contactar a '{$clienteNombre}'.
+
+                                IMPORTANTE:
+                                - No inventes URL falsas, usa el nombre de la marca.
+                                - Devuelve SOLO el código HTML.
                             ";
 
-                            // Usamos Flash porque es rápido y reduce riesgo de timeout
+                            // Usamos Gemini 2.5 Flash para velocidad y calidad
                             $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . $apiKey;
 
                             $response = Http::withHeaders(['Content-Type' => 'application/json'])
-                                ->timeout(120) // Esperamos hasta 2 min a Google
+                                ->timeout(120)
                                 ->post($url, [
                                     'contents' => [['parts' => [['text' => $prompt]]]],
                                     'generationConfig' => [
-                                        'temperature' => 0.7,
+                                        'temperature' => 0.75, // Un poco más creativo
                                         'maxOutputTokens' => 8192,
                                     ]
                                 ]);
@@ -151,8 +172,8 @@ class ArticlesRelationManager extends RelationManager
                             ]);
 
                             Notification::make()
-                                ->title('¡Éxito!')
-                                ->body('Artículo generado correctamente.')
+                                ->title('¡Artículo Generado!')
+                                ->body("Se ha creado contenido personalizado para {$clienteNombre}.")
                                 ->success()
                                 ->send();
 
