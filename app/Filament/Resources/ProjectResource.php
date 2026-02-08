@@ -28,12 +28,14 @@ class ProjectResource extends Resource
                     ->schema([
                         Forms\Components\TextInput::make('name')
                             ->required()
+                            ->maxLength(255)
                             ->label('Nombre del Proyecto'),
                         
                         Forms\Components\TextInput::make('domain_url')
                             ->url()
                             ->required()
                             ->prefix('https://')
+                            ->maxLength(255)
                             ->label('URL del Sitio'),
 
                         Forms\Components\Select::make('cms_type')
@@ -54,6 +56,27 @@ class ProjectResource extends Resource
                             ->default('weekly')
                             ->required()
                             ->label('Frecuencia'),
+                    ])->columns(2),
+
+                Forms\Components\Section::make('Configuración de Contenido')
+                    ->schema([
+                        // ESTOS ERAN LOS CAMPOS QUE FALTABAN O ESTABAN OCULTOS:
+                        Forms\Components\TextInput::make('target_language')
+                            ->label('Idioma Objetivo')
+                            ->default('es-MX') // Valor por defecto para que no falle
+                            ->required()
+                            ->maxLength(10),
+
+                        Forms\Components\TextInput::make('target_city')
+                            ->label('Ciudad Objetivo (Local SEO)')
+                            ->placeholder('Ej: Manzanillo, Colima')
+                            ->maxLength(255),
+
+                        Forms\Components\Textarea::make('brand_voice')
+                            ->label('Voz de Marca')
+                            ->rows(3)
+                            ->placeholder('Ej: Profesional, amigable, experto...')
+                            ->columnSpanFull(),
                     ])->columns(2),
             ]);
     }
