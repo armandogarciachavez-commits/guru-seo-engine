@@ -25,7 +25,8 @@ class SeoCrawler extends CrawlObserver
     public function crawled(
         UriInterface $url,
         ResponseInterface $response,
-        ?UriInterface $foundOnUrl = null
+        ?UriInterface $foundOnUrl = null,
+        ?string $linkText = null // <--- ¡ESTO FALTABA! (Nuevo parámetro de Spatie)
     ): void {
         // Solo analizamos HTML (ignoramos imágenes, CSS, JS)
         $contentType = $response->getHeaderLine('Content-Type');
@@ -72,12 +73,13 @@ class SeoCrawler extends CrawlObserver
     public function crawlFailed(
         UriInterface $url,
         RequestException $requestException,
-        ?UriInterface $foundOnUrl = null
+        ?UriInterface $foundOnUrl = null,
+        ?string $linkText = null // <--- ¡ESTO TAMBIÉN FALTABA!
     ): void {
         CrawlResult::create([
             'project_id' => $this->project->id,
             'url' => (string) $url,
-            'status_code' => $requestException->getCode() ?: 500, // Si no hay código, asumimos error servidor
+            'status_code' => $requestException->getCode() ?: 500, 
             'title' => 'Error de Rastreo',
             'h1' => 'Error: ' . $requestException->getMessage(),
         ]);
