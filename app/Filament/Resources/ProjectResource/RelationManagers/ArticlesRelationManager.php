@@ -9,7 +9,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Notifications\Notification;
 use App\Models\Article;
-use OpenAI; // <--- Cliente Universal
+use Illuminate\Support\Facades\Http; // <--- Usamos el cliente HTTP nativo de Laravel
 
 class ArticlesRelationManager extends RelationManager
 {
@@ -69,9 +69,9 @@ class ArticlesRelationManager extends RelationManager
                     ->label('Crear Manualmente'),
 
                 Tables\Actions\Action::make('generate_ai')
-                    ->label('Generar con OpenAI')
+                    ->label('Generar con Gemini')
                     ->icon('heroicon-o-sparkles')
-                    ->color('success') // Color verde OpenAI
+                    ->color('info') // Color Azul (Gemini)
                     ->form([
                         Forms\Components\TextInput::make('topic')
                             ->label('¿Sobre qué quieres escribir?')
@@ -92,23 +92,19 @@ class ArticlesRelationManager extends RelationManager
                         $project = $livewire->getOwnerRecord();
                         
                         Notification::make()
-                            ->title('OpenAI está escribiendo...')
-                            ->body('Espera unos segundos mientras pensamos...')
+                            ->title('Gemini está pensando...')
+                            ->body('Redactando tu contenido...')
                             ->info()
                             ->send();
 
                         try {
-                            // 1. Obtener la Clave del entorno
-                            $apiKey = env('OPENAI_API_KEY');
+                            $apiKey = env('GEMINI_API_KEY');
                             
                             if (empty($apiKey)) {
-                                throw new \Exception('Falta la OPENAI_API_KEY en el archivo .env');
+                                throw new \Exception('No se encontró GEMINI_API_KEY en el archivo .env');
                             }
 
-                            // 2. Conectar Cliente
-                            $client = OpenAI::client($apiKey);
-
-                            // 3. Crear el Prompt
+                            // 1. Construir el Prompt
                             $prompt = "
                                 Actúa como un experto en SEO y Copywriting.
                                 Escribe un artículo detallado sobre: '{$data['topic']}'.
@@ -117,23 +113,38 @@ class ArticlesRelationManager extends RelationManager
                                 - Tono: {$data['tone']}.
                                 - Idioma: Español.
                                 - Formato: HTML puro (usa h2, h3, p, ul, li, strong). NO uses h1.
-                                - Estructura: Introducción, Desarrollo, Conclusión.
+                                - Estructura: Introducción, Desarrollo (con subtítulos), Conclusión.
                                 - Longitud: Aprox 600 palabras.
-                                - IMPORTANTE: Solo devuelve el código HTML del contenido.
+                                - IMPORTANTE: Solo devuelve el código HTML del contenido, sin ```html ni explicaciones extra.
                             ";
 
-                            // 4. Llamada a GPT-4o-mini
-                            $response = $client->chat()->create([
-                                'model' => 'gpt-4o-mini',
-                                'messages' => [
-                                    ['role' => 'system', 'content' => 'Eres un redactor SEO experto.'],
-                                    ['role' => 'user', 'content' => $prompt],
-                                ],
+                            // 2. Llamada directa a la API de Google (Sin librerías extrañas)
+                            $response = Http::withHeaders([
+                                'Content-Type' => 'application/json',
+                            ])->post("[https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=){$apiKey}", [
+                                'contents' => [
+                                    [
+                                        'parts' => [
+                                            ['text' => $prompt]
+                                        ]
+                                    ]
+                                ]
                             ]);
 
-                            $aiContent = $response->choices[0]->message->content;
+                            // 3. Verificar errores
+                            if ($response->failed()) {
+                                throw new \Exception('Error de Google: ' . $response->body());
+                            }
 
-                            // Limpiar markdown
+                            // 4. Extraer el texto de la respuesta JSON
+                            $json = $response->json();
+                            $aiContent = $json['candidates'][0]['content']['parts'][0]['text'] ?? '';
+
+                            if (empty($aiContent)) {
+                                throw new \Exception('Gemini respondió vacío.');
+                            }
+
+                            // Limpiar markdown si Gemini lo pone
                             $aiContent = str_replace(['```html', '```'], '', $aiContent);
 
                             // 5. Guardar
@@ -146,13 +157,13 @@ class ArticlesRelationManager extends RelationManager
                             ]);
 
                             Notification::make()
-                                ->title('¡Artículo OpenAI Generado!')
+                                ->title('¡Artículo Gemini Generado!')
                                 ->success()
                                 ->send();
 
                         } catch (\Exception $e) {
                             Notification::make()
-                                ->title('Error de OpenAI')
+                                ->title('Error de IA')
                                 ->body($e->getMessage())
                                 ->danger()
                                 ->send();
