@@ -12,9 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('articles', function (Blueprint $table) {
-            // Hacemos que la columna 'keyword' acepte valores vacíos (NULL)
-            // Usamos ->change() para modificar la columna que ya existe
-            $table->string('keyword')->nullable()->change();
+            // Agregamos la columna 'content' de tipo texto largo
+            // Lo ponemos nullable por si creas un borrador vacío al principio
+            $table->longText('content')->nullable()->after('title');
         });
     }
 
@@ -24,8 +24,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('articles', function (Blueprint $table) {
-            // Si deshacemos la migración, vuelve a ser obligatoria
-            $table->string('keyword')->nullable(false)->change();
+            $table->dropColumn('content');
         });
     }
 };
