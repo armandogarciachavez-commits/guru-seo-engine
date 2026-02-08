@@ -69,13 +69,13 @@ class ArticlesRelationManager extends RelationManager
                     ->label('Crear Manualmente'),
 
                 Tables\Actions\Action::make('generate_ai')
-                    ->label('Generar con Gemini Pro')
+                    ->label('Generar con Gemini 1.5 PRO')
                     ->icon('heroicon-o-sparkles')
-                    ->color('primary') 
+                    ->color('warning') // Color Premium
                     ->form([
                         Forms\Components\TextInput::make('topic')
                             ->label('¿Sobre qué quieres escribir?')
-                            ->placeholder('Ej: Estrategias de Marketing Digital 2026')
+                            ->placeholder('Ej: Estrategias avanzadas de Inbound Marketing')
                             ->required(),
                         
                         Forms\Components\Select::make('tone')
@@ -92,9 +92,9 @@ class ArticlesRelationManager extends RelationManager
                         $project = $livewire->getOwnerRecord();
                         
                         Notification::make()
-                            ->title('Gemini Pro escribiendo...')
-                            ->body('Generando contenido de alta calidad...')
-                            ->info()
+                            ->title('Gemini 1.5 Pro trabajando...')
+                            ->body('Redactando contenido extenso (esto tomará unos segundos)...')
+                            ->warning()
                             ->send();
 
                         try {
@@ -104,30 +104,30 @@ class ArticlesRelationManager extends RelationManager
                                 throw new \Exception('No se encontró GEMINI_API_KEY en el archivo .env');
                             }
 
-                            // 1. Prompt "High-End" (Optimizada para Pro 1.0)
+                            // 1. Prompt de Nivel Experto (Aprovechando la ventana de contexto de 1M tokens)
                             $prompt = "
-                                Eres un redactor SEO experto y copywriter senior.
-                                Tarea: Escribir un artículo detallado sobre '{$data['topic']}'.
+                                Actúa como un Senior SEO Specialist y Copywriter de clase mundial.
+                                Tarea: Escribir un artículo PROFUNDO y EXTENSO sobre '{$data['topic']}'.
                                 
                                 Configuración:
-                                - Modelo: Gemini Pro Stable.
+                                - Modelo: Gemini 1.5 Pro (Latest).
                                 - Tono: {$data['tone']}.
                                 - Idioma: Español Neutro.
-                                - Formato: HTML semántico estricto (h2, h3, p, ul, li, strong). NO uses h1.
-                                - Estructura: 
-                                   1. Introducción atractiva.
-                                   2. Desarrollo profundo (3-5 secciones).
-                                   3. Conclusión accionable.
-                                - Longitud: Extenso y detallado.
+                                - Formato: HTML semántico (h2, h3, p, ul, li, strong). NO uses h1.
+                                - Estructura Obligatoria:
+                                   1. Introducción con gancho emocional o dato estadístico.
+                                   2. Desarrollo exhaustivo (mínimo 5 subtemas detallados).
+                                   3. Uso de listas y negritas para mejorar la legibilidad.
+                                   4. Conclusión accionable.
+                                - Longitud: +1000 palabras.
                                 
-                                IMPORTANTE: Devuelve SOLO el código HTML del contenido listo para publicar.
+                                IMPORTANTE: Entrega SOLO el código HTML limpio.
                             ";
 
-                            // 2. URL del Modelo ESTABLE (gemini-pro)
-                            // Este endpoint NO falla. Es la versión de producción global.
-                            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" . $apiKey;
+                            // 2. URL FORZADA a la versión "Latest" para evitar errores 404
+                            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=" . $apiKey;
 
-                            // 3. Configuración del Payload
+                            // 3. Configuración de parámetros al máximo
                             $payload = [
                                 'contents' => [
                                     [
@@ -137,10 +137,10 @@ class ArticlesRelationManager extends RelationManager
                                     ]
                                 ],
                                 'generationConfig' => [
-                                    'temperature' => 0.7,
+                                    'temperature' => 0.85, // Alta creatividad
                                     'topK' => 40,
                                     'topP' => 0.95,
-                                    'maxOutputTokens' => 2048, 
+                                    'maxOutputTokens' => 8192, // Máxima salida permitida
                                 ]
                             ];
 
@@ -149,8 +149,11 @@ class ArticlesRelationManager extends RelationManager
                                 'Content-Type' => 'application/json',
                             ])->post($url, $payload);
 
+                            // Manejo detallado del error para saber qué pasa si falla
                             if ($response->failed()) {
-                                throw new \Exception('Error de Google API: ' . $response->body());
+                                $errorBody = $response->json();
+                                $errorMessage = $errorBody['error']['message'] ?? $response->body();
+                                throw new \Exception('Error de Google API: ' . $errorMessage);
                             }
 
                             $json = $response->json();
@@ -173,7 +176,8 @@ class ArticlesRelationManager extends RelationManager
                             ]);
 
                             Notification::make()
-                                ->title('¡Artículo Generado!')
+                                ->title('¡Artículo Premium Generado!')
+                                ->body('Contenido extenso creado con Gemini 1.5 Pro.')
                                 ->success()
                                 ->send();
 
