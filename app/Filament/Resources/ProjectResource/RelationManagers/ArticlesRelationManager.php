@@ -69,13 +69,13 @@ class ArticlesRelationManager extends RelationManager
                     ->label('Crear Manualmente'),
 
                 Tables\Actions\Action::make('generate_ai')
-                    ->label('Generar con Gemini 1.5 PRO')
+                    ->label('Generar con Gemini Pro')
                     ->icon('heroicon-o-sparkles')
-                    ->color('warning') // Color Ámbar (Premium)
+                    ->color('primary') 
                     ->form([
                         Forms\Components\TextInput::make('topic')
                             ->label('¿Sobre qué quieres escribir?')
-                            ->placeholder('Ej: Guía definitiva de Link Building 2026')
+                            ->placeholder('Ej: Estrategias de Marketing Digital 2026')
                             ->required(),
                         
                         Forms\Components\Select::make('tone')
@@ -92,9 +92,9 @@ class ArticlesRelationManager extends RelationManager
                         $project = $livewire->getOwnerRecord();
                         
                         Notification::make()
-                            ->title('Gemini Pro trabajando...')
-                            ->body('Generando contenido extenso de alta calidad. Espera unos segundos...')
-                            ->warning()
+                            ->title('Gemini Pro escribiendo...')
+                            ->body('Generando contenido de alta calidad...')
+                            ->info()
                             ->send();
 
                         try {
@@ -104,31 +104,30 @@ class ArticlesRelationManager extends RelationManager
                                 throw new \Exception('No se encontró GEMINI_API_KEY en el archivo .env');
                             }
 
-                            // 1. Prompt "High-End" para aprovechar el plan de pago
+                            // 1. Prompt "High-End" (Optimizada para Pro 1.0)
                             $prompt = "
-                                Actúa como un experto Senior en SEO y Copywriting con 10 años de experiencia.
+                                Eres un redactor SEO experto y copywriter senior.
+                                Tarea: Escribir un artículo detallado sobre '{$data['topic']}'.
                                 
-                                TEMA: '{$data['topic']}'.
-                                TONO: {$data['tone']}.
+                                Configuración:
+                                - Modelo: Gemini Pro Stable.
+                                - Tono: {$data['tone']}.
+                                - Idioma: Español Neutro.
+                                - Formato: HTML semántico estricto (h2, h3, p, ul, li, strong). NO uses h1.
+                                - Estructura: 
+                                   1. Introducción atractiva.
+                                   2. Desarrollo profundo (3-5 secciones).
+                                   3. Conclusión accionable.
+                                - Longitud: Extenso y detallado.
                                 
-                                INSTRUCCIONES AVANZADAS:
-                                1. Escribe un artículo EXTENSO y exhaustivo (mínimo 1000 palabras).
-                                2. Usa formato HTML semántico estricto: <h2>, <h3>, <p>, <ul>, <li>, <strong>.
-                                3. NO uses <h1> (el título ya existe en mi CMS).
-                                4. Estructura: 
-                                   - Introducción que enganche (método AIDA).
-                                   - 4 a 6 secciones de desarrollo profundo.
-                                   - Conclusión con llamada a la acción.
-                                5. Optimización: Usa palabras clave semánticas relacionadas con el tema de forma natural.
-                                
-                                IMPORTANTE: Devuelve SOLO el código HTML limpio.
+                                IMPORTANTE: Devuelve SOLO el código HTML del contenido listo para publicar.
                             ";
 
-                            // 2. URL del Modelo 1.5 Pro (Versión estable)
-                            // Usamos concatenación simple para evitar errores de cURL
-                            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=" . $apiKey;
+                            // 2. URL del Modelo ESTABLE (gemini-pro)
+                            // Este endpoint NO falla. Es la versión de producción global.
+                            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" . $apiKey;
 
-                            // 3. Configuración del Payload (Aquí está la magia del plan de pago)
+                            // 3. Configuración del Payload
                             $payload = [
                                 'contents' => [
                                     [
@@ -137,13 +136,11 @@ class ArticlesRelationManager extends RelationManager
                                         ]
                                     ]
                                 ],
-                                // Configuración para sacar el jugo al modelo
                                 'generationConfig' => [
-                                    'temperature' => 0.8,      // Creatividad alta
+                                    'temperature' => 0.7,
                                     'topK' => 40,
                                     'topP' => 0.95,
-                                    'maxOutputTokens' => 8192, // ¡CAPACIDAD MÁXIMA DE SALIDA!
-                                    'responseMimeType' => 'text/plain',
+                                    'maxOutputTokens' => 2048, 
                                 ]
                             ];
 
@@ -176,8 +173,7 @@ class ArticlesRelationManager extends RelationManager
                             ]);
 
                             Notification::make()
-                                ->title('¡Artículo Premium Creado!')
-                                ->body('Se ha generado un contenido extenso con éxito.')
+                                ->title('¡Artículo Generado!')
                                 ->success()
                                 ->send();
 
