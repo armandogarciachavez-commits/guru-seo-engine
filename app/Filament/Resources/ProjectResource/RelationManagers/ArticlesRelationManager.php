@@ -9,7 +9,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Notifications\Notification;
 use App\Models\Article;
-use Illuminate\Support\Facades\Http; // <--- Usamos el cliente HTTP nativo de Laravel
+use Illuminate\Support\Facades\Http; // Cliente HTTP nativo (sin librerías extrañas)
 
 class ArticlesRelationManager extends RelationManager
 {
@@ -93,19 +93,19 @@ class ArticlesRelationManager extends RelationManager
                         
                         Notification::make()
                             ->title('Gemini está pensando...')
-                            ->body('Redactando tu contenido...')
+                            ->body('Esto puede tomar unos segundos.')
                             ->info()
                             ->send();
 
                         try {
+                            // 1. Obtener API Key
                             $apiKey = env('GEMINI_API_KEY');
                             
-                            // Validación básica
                             if (empty($apiKey)) {
                                 throw new \Exception('No se encontró GEMINI_API_KEY en el archivo .env');
                             }
 
-                            // 1. Construir el Prompt
+                            // 2. Construir el Prompt
                             $prompt = "
                                 Actúa como un experto en SEO y Copywriting.
                                 Escribe un artículo detallado sobre: '{$data['topic']}'.
@@ -114,15 +114,15 @@ class ArticlesRelationManager extends RelationManager
                                 - Tono: {$data['tone']}.
                                 - Idioma: Español.
                                 - Formato: HTML puro (usa h2, h3, p, ul, li, strong). NO uses h1.
-                                - Estructura: Introducción, Desarrollo (con subtítulos), Conclusión.
+                                - Estructura: Introducción, Desarrollo, Conclusión.
                                 - Longitud: Aprox 600 palabras.
-                                - IMPORTANTE: Solo devuelve el código HTML del contenido, sin ```html ni explicaciones extra.
+                                - IMPORTANTE: Solo devuelve el código HTML del contenido.
                             ";
 
-                            // 2. Definir la URL limpia (sin basura de markdown)
-                            $url = "[https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=)" . $apiKey;
+                            // 3. URL Limpia para Google Gemini (Sin markdown, texto puro)
+                            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" . $apiKey;
 
-                            // 3. Llamada a la API
+                            // 4. Llamada HTTP directa
                             $response = Http::withHeaders([
                                 'Content-Type' => 'application/json',
                             ])->post($url, [
@@ -135,12 +135,12 @@ class ArticlesRelationManager extends RelationManager
                                 ]
                             ]);
 
-                            // 4. Verificar errores de la API
+                            // 5. Verificar si Google falló
                             if ($response->failed()) {
                                 throw new \Exception('Error de Google Gemini: ' . $response->body());
                             }
 
-                            // 5. Extraer y limpiar respuesta
+                            // 6. Extraer el texto del JSON
                             $json = $response->json();
                             $aiContent = $json['candidates'][0]['content']['parts'][0]['text'] ?? '';
 
@@ -148,10 +148,10 @@ class ArticlesRelationManager extends RelationManager
                                 throw new \Exception('Gemini respondió vacío.');
                             }
 
-                            // Limpiar markdown si Gemini lo pone
+                            // 7. Limpiar basura de Markdown (```html ... ```)
                             $aiContent = str_replace(['```html', '```'], '', $aiContent);
 
-                            // 6. Guardar en Base de Datos
+                            // 8. Guardar en la Base de Datos
                             Article::create([
                                 'project_id' => $project->id,
                                 'title' => $data['topic'],
@@ -161,16 +161,10 @@ class ArticlesRelationManager extends RelationManager
                             ]);
 
                             Notification::make()
-                                ->title('¡Artículo Gemini Generado!')
+                                ->title('¡Artículo Generado!')
                                 ->success()
                                 ->send();
 
-                        } catch (\Exception $e) {
-                            Notification::make()
-                                ->title('Error de IA')
-                                ->body($e->getMessage())
-                                ->danger()
-                                ->send();
                         } catch (\Exception $e) {
                             Notification::make()
                                 ->title('Error de IA')
