@@ -69,8 +69,8 @@ class ArticlesRelationManager extends RelationManager
                     ->label('Crear Manualmente'),
 
                 Tables\Actions\Action::make('generate_ai')
-                    ->label('Generar con Gemini 2.5 PRO')
-                    ->icon('heroicon-o-sparkles')
+                    ->label('Generar con Gemini 2.5 Flash') // <--- Cambio a FLASH
+                    ->icon('heroicon-o-bolt') // Icono de rayo (Velocidad)
                     ->color('warning')
                     ->form([
                         Forms\Components\TextInput::make('topic')
@@ -91,12 +91,10 @@ class ArticlesRelationManager extends RelationManager
                     ->action(function (array $data, $livewire) {
                         $project = $livewire->getOwnerRecord();
                         
-                        // Notificación PERSISTENTE para que el usuario sepa que debe esperar
                         Notification::make()
-                            ->title('Gemini 2.5 Pro pensando...')
-                            ->body('Generando un artículo extenso. Esto puede tardar hasta 1 minuto. ¡No cierres!')
+                            ->title('Gemini 2.5 Flash trabajando...')
+                            ->body('Generando contenido a máxima velocidad...')
                             ->warning()
-                            ->persistent() // <--- Para que no se quite sola
                             ->send();
 
                         try {
@@ -106,14 +104,14 @@ class ArticlesRelationManager extends RelationManager
                                 throw new \Exception('No se encontró GEMINI_API_KEY en el archivo .env');
                             }
 
-                            // 1. Prompt "Ultra-High-End"
+                            // 1. Prompt Optimizado
                             $prompt = "
                                 Actúa como un experto mundial en SEO y Copywriting.
                                 TEMA: '{$data['topic']}'.
                                 TONO: {$data['tone']}.
                                 
                                 INSTRUCCIONES:
-                                1. Escribe un artículo EXTENSO y PROFUNDO (+1200 palabras).
+                                1. Escribe un artículo EXTENSO y PROFUNDO (+1000 palabras).
                                 2. Usa formato HTML semántico impecable (h2, h3, p, ul, li, strong, blockquote). NO uses h1.
                                 3. Estructura: 
                                    - Introducción impactante.
@@ -124,8 +122,9 @@ class ArticlesRelationManager extends RelationManager
                                 IMPORTANTE: Devuelve SOLO el código HTML limpio.
                             ";
 
-                            // 2. URL DEL MODELO GEMINI 2.5 PRO
-                            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=" . $apiKey;
+                            // 2. URL DEL MODELO GEMINI 2.5 FLASH (Velocidad Extrema)
+                            // Usamos el nombre exacto de tu lista: models/gemini-2.5-flash
+                            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . $apiKey;
 
                             // 3. Payload
                             $payload = [
@@ -144,11 +143,11 @@ class ArticlesRelationManager extends RelationManager
                                 ]
                             ];
 
-                            // 4. Llamada HTTP con TIMEOUT DE 120 SEGUNDOS
+                            // 4. Llamada HTTP (Mantenemos timeout alto por si acaso, pero Flash debería tardar <20s)
                             $response = Http::withHeaders([
                                 'Content-Type' => 'application/json',
                             ])
-                            ->timeout(120) // <--- AUMENTAMOS EL TIEMPO DE ESPERA AQUÍ
+                            ->timeout(60)
                             ->post($url, $payload);
 
                             if ($response->failed()) {
@@ -176,8 +175,8 @@ class ArticlesRelationManager extends RelationManager
                             ]);
 
                             Notification::make()
-                                ->title('¡Contenido Generación 2.5 Creado!')
-                                ->body('Artículo generado con éxito tras una larga reflexión.')
+                                ->title('¡Artículo Creado (Flash)!')
+                                ->body('Generado exitosamente a alta velocidad.')
                                 ->success()
                                 ->send();
 
