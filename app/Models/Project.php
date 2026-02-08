@@ -47,4 +47,8 @@ class Project extends Model
     {
         return $this->hasMany(Article::class);
     }
+	public function crawlResults()
+    {
+        return $this->hasMany(CrawlResult::class);
+    }
 }

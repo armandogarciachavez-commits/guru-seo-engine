@@ -167,6 +167,7 @@ class ProjectResource extends Resource
     {
         return [
             RelationManagers\ArticlesRelationManager::class,
+            RelationManagers\CrawlResultsRelationManager::class, // <--- AGREGADA AQUÍ
         ];
     }
 
