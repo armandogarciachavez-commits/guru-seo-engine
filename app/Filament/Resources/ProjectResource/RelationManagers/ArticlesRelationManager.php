@@ -69,13 +69,13 @@ class ArticlesRelationManager extends RelationManager
                     ->label('Crear Manualmente'),
 
                 Tables\Actions\Action::make('generate_ai')
-                    ->label('Generar con Gemini 2.5 PRO') // <--- ¡EL FUTURO!
+                    ->label('Generar con Gemini 2.5 PRO')
                     ->icon('heroicon-o-sparkles')
-                    ->color('warning') // Color Dorado/Premium
+                    ->color('warning')
                     ->form([
                         Forms\Components\TextInput::make('topic')
                             ->label('¿Sobre qué quieres escribir?')
-                            ->placeholder('Ej: Guía definitiva de Link Building 2026')
+                            ->placeholder('Ej: Guía completa de Link Building 2026')
                             ->required(),
                         
                         Forms\Components\Select::make('tone')
@@ -91,10 +91,12 @@ class ArticlesRelationManager extends RelationManager
                     ->action(function (array $data, $livewire) {
                         $project = $livewire->getOwnerRecord();
                         
+                        // Notificación PERSISTENTE para que el usuario sepa que debe esperar
                         Notification::make()
-                            ->title('Gemini 2.5 Pro trabajando...')
-                            ->body('Usando modelo de última generación. Espera un momento...')
+                            ->title('Gemini 2.5 Pro pensando...')
+                            ->body('Generando un artículo extenso. Esto puede tardar hasta 1 minuto. ¡No cierres!')
                             ->warning()
+                            ->persistent() // <--- Para que no se quite sola
                             ->send();
 
                         try {
@@ -104,7 +106,7 @@ class ArticlesRelationManager extends RelationManager
                                 throw new \Exception('No se encontró GEMINI_API_KEY en el archivo .env');
                             }
 
-                            // 1. Prompt "Ultra-High-End" (Para modelo 2.5)
+                            // 1. Prompt "Ultra-High-End"
                             $prompt = "
                                 Actúa como un experto mundial en SEO y Copywriting.
                                 TEMA: '{$data['topic']}'.
@@ -122,7 +124,7 @@ class ArticlesRelationManager extends RelationManager
                                 IMPORTANTE: Devuelve SOLO el código HTML limpio.
                             ";
 
-                            // 2. URL DEL MODELO GEMINI 2.5 PRO (Confirmado en tu lista)
+                            // 2. URL DEL MODELO GEMINI 2.5 PRO
                             $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=" . $apiKey;
 
                             // 3. Payload
@@ -138,14 +140,16 @@ class ArticlesRelationManager extends RelationManager
                                     'temperature' => 0.7,
                                     'topK' => 40,
                                     'topP' => 0.95,
-                                    'maxOutputTokens' => 8192, // Alta capacidad de salida
+                                    'maxOutputTokens' => 8192,
                                 ]
                             ];
 
-                            // 4. Llamada HTTP
+                            // 4. Llamada HTTP con TIMEOUT DE 120 SEGUNDOS
                             $response = Http::withHeaders([
                                 'Content-Type' => 'application/json',
-                            ])->post($url, $payload);
+                            ])
+                            ->timeout(120) // <--- AUMENTAMOS EL TIEMPO DE ESPERA AQUÍ
+                            ->post($url, $payload);
 
                             if ($response->failed()) {
                                 $errorBody = $response->json();
@@ -173,7 +177,7 @@ class ArticlesRelationManager extends RelationManager
 
                             Notification::make()
                                 ->title('¡Contenido Generación 2.5 Creado!')
-                                ->body('Artículo generado con el modelo más avanzado disponible.')
+                                ->body('Artículo generado con éxito tras una larga reflexión.')
                                 ->success()
                                 ->send();
 
