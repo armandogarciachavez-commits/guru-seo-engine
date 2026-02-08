@@ -9,7 +9,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Notifications\Notification;
 use App\Models\Article;
-use Illuminate\Support\Facades\Http; // Cliente HTTP nativo (sin librerías extrañas)
+use Illuminate\Support\Facades\Http; 
 
 class ArticlesRelationManager extends RelationManager
 {
@@ -69,13 +69,13 @@ class ArticlesRelationManager extends RelationManager
                     ->label('Crear Manualmente'),
 
                 Tables\Actions\Action::make('generate_ai')
-                    ->label('Generar con Gemini')
+                    ->label('Generar con Gemini 1.5 PRO')
                     ->icon('heroicon-o-sparkles')
-                    ->color('info') // Color Azul (Gemini)
+                    ->color('warning') // Color Ámbar (Premium)
                     ->form([
                         Forms\Components\TextInput::make('topic')
                             ->label('¿Sobre qué quieres escribir?')
-                            ->placeholder('Ej: 5 Ventajas del SEO Local')
+                            ->placeholder('Ej: Guía definitiva de Link Building 2026')
                             ->required(),
                         
                         Forms\Components\Select::make('tone')
@@ -92,55 +92,70 @@ class ArticlesRelationManager extends RelationManager
                         $project = $livewire->getOwnerRecord();
                         
                         Notification::make()
-                            ->title('Gemini está pensando...')
-                            ->body('Esto puede tomar unos segundos.')
-                            ->info()
+                            ->title('Gemini Pro trabajando...')
+                            ->body('Generando contenido extenso de alta calidad. Espera unos segundos...')
+                            ->warning()
                             ->send();
 
                         try {
-                            // 1. Obtener API Key
                             $apiKey = env('GEMINI_API_KEY');
                             
                             if (empty($apiKey)) {
                                 throw new \Exception('No se encontró GEMINI_API_KEY en el archivo .env');
                             }
 
-                            // 2. Construir el Prompt
+                            // 1. Prompt "High-End" para aprovechar el plan de pago
                             $prompt = "
-                                Actúa como un experto en SEO y Copywriting.
-                                Escribe un artículo detallado sobre: '{$data['topic']}'.
+                                Actúa como un experto Senior en SEO y Copywriting con 10 años de experiencia.
                                 
-                                Requisitos:
-                                - Tono: {$data['tone']}.
-                                - Idioma: Español.
-                                - Formato: HTML puro (usa h2, h3, p, ul, li, strong). NO uses h1.
-                                - Estructura: Introducción, Desarrollo, Conclusión.
-                                - Longitud: Aprox 600 palabras.
-                                - IMPORTANTE: Solo devuelve el código HTML del contenido.
+                                TEMA: '{$data['topic']}'.
+                                TONO: {$data['tone']}.
+                                
+                                INSTRUCCIONES AVANZADAS:
+                                1. Escribe un artículo EXTENSO y exhaustivo (mínimo 1000 palabras).
+                                2. Usa formato HTML semántico estricto: <h2>, <h3>, <p>, <ul>, <li>, <strong>.
+                                3. NO uses <h1> (el título ya existe en mi CMS).
+                                4. Estructura: 
+                                   - Introducción que enganche (método AIDA).
+                                   - 4 a 6 secciones de desarrollo profundo.
+                                   - Conclusión con llamada a la acción.
+                                5. Optimización: Usa palabras clave semánticas relacionadas con el tema de forma natural.
+                                
+                                IMPORTANTE: Devuelve SOLO el código HTML limpio.
                             ";
 
-                            // 3. URL Limpia para Google Gemini (Sin markdown, texto puro)
-                            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" . $apiKey;
+                            // 2. URL del Modelo 1.5 Pro (Versión estable)
+                            // Usamos concatenación simple para evitar errores de cURL
+                            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=" . $apiKey;
 
-                            // 4. Llamada HTTP directa
-                            $response = Http::withHeaders([
-                                'Content-Type' => 'application/json',
-                            ])->post($url, [
+                            // 3. Configuración del Payload (Aquí está la magia del plan de pago)
+                            $payload = [
                                 'contents' => [
                                     [
                                         'parts' => [
                                             ['text' => $prompt]
                                         ]
                                     ]
+                                ],
+                                // Configuración para sacar el jugo al modelo
+                                'generationConfig' => [
+                                    'temperature' => 0.8,      // Creatividad alta
+                                    'topK' => 40,
+                                    'topP' => 0.95,
+                                    'maxOutputTokens' => 8192, // ¡CAPACIDAD MÁXIMA DE SALIDA!
+                                    'responseMimeType' => 'text/plain',
                                 ]
-                            ]);
+                            ];
 
-                            // 5. Verificar si Google falló
+                            // 4. Llamada HTTP
+                            $response = Http::withHeaders([
+                                'Content-Type' => 'application/json',
+                            ])->post($url, $payload);
+
                             if ($response->failed()) {
-                                throw new \Exception('Error de Google Gemini: ' . $response->body());
+                                throw new \Exception('Error de Google API: ' . $response->body());
                             }
 
-                            // 6. Extraer el texto del JSON
                             $json = $response->json();
                             $aiContent = $json['candidates'][0]['content']['parts'][0]['text'] ?? '';
 
@@ -148,10 +163,10 @@ class ArticlesRelationManager extends RelationManager
                                 throw new \Exception('Gemini respondió vacío.');
                             }
 
-                            // 7. Limpiar basura de Markdown (```html ... ```)
+                            // Limpieza final
                             $aiContent = str_replace(['```html', '```'], '', $aiContent);
 
-                            // 8. Guardar en la Base de Datos
+                            // 5. Guardar
                             Article::create([
                                 'project_id' => $project->id,
                                 'title' => $data['topic'],
@@ -161,7 +176,8 @@ class ArticlesRelationManager extends RelationManager
                             ]);
 
                             Notification::make()
-                                ->title('¡Artículo Generado!')
+                                ->title('¡Artículo Premium Creado!')
+                                ->body('Se ha generado un contenido extenso con éxito.')
                                 ->success()
                                 ->send();
 
