@@ -35,9 +35,9 @@ class CrawlResultsRelationManager extends RelationManager
                     ->label('Estado')
                     ->badge()
                     ->color(fn (string $state): string => match (true) {
-                        $state == 200 => 'success', // Verde (OK)
-                        $state >= 500 => 'danger',  // Rojo (Error Servidor)
-                        $state >= 400 => 'warning', // Naranja (No encontrado)
+                        $state == 200 => 'success',
+                        $state >= 500 => 'danger',
+                        $state >= 400 => 'warning',
                         default => 'gray',
                     })
                     ->sortable(),
@@ -63,15 +63,14 @@ class CrawlResultsRelationManager extends RelationManager
                     ->sortable(),
             ])
             ->headerActions([
-                // --- AQUÍ ESTÁ EL CEREBRO DE GEMINI ---
                 Tables\Actions\Action::make('analyze_audit')
-                    ->label('Analizar con IA')
+                    ->label('Analizar Identidad y SEO')
                     ->icon('heroicon-o-cpu-chip')
                     ->color('primary')
-                    ->modalHeading('Reporte de Auditoría SEO')
-                    ->modalSubmitAction(false) // Botón de "Guardar" oculto (es solo lectura)
+                    ->modalHeading('Diagnóstico Inteligente de Sitio')
+                    ->modalSubmitAction(false)
                     ->modalContent(function ($livewire) {
-                        // 1. Recopilar datos
+                        // 1. Datos del Proyecto
                         $project = $livewire->getOwnerRecord();
                         $results = $project->crawlResults;
 
@@ -79,50 +78,63 @@ class CrawlResultsRelationManager extends RelationManager
                             return new HtmlString('<p class="text-danger font-bold">⚠️ Primero debes ir a la pestaña anterior y pulsar "Rastrear Sitio".</p>');
                         }
 
-                        // 2. Preparar resumen para ahorrar tokens
+                        // 2. Extraer "ADN" de la marca desde lo rastreado
+                        // Tomamos 10 ejemplos de títulos y descripciones para que la IA entienda el giro del negocio
+                        $brandContext = $results->whereNotNull('title')->take(10)->map(function($r) {
+                            return "- Título: {$r->title} | H1: {$r->h1} | Meta: {$r->meta_description}";
+                        })->implode("\n");
+
+                        // 3. Estadísticas Técnicas
                         $total = $results->count();
                         $errors404 = $results->where('status_code', 404)->count();
                         $missingH1 = $results->where('h1', null)->count();
+                        $missingMeta = $results->where('meta_description', null)->count();
                         $thinContent = $results->where('word_count', '<', 300)->count();
                         
-                        // Tomamos 5 URLs con error como ejemplo
-                        $badUrls = $results->where('status_code', '!=', 200)->take(5)->pluck('url')->implode(', ');
+                        $brokenLinksList = $results->where('status_code', 404)->take(3)->pluck('url')->implode(', ');
 
-                        // 3. Llamada a Gemini 2.5 Flash
                         try {
                             $apiKey = env('GEMINI_API_KEY');
                             
+                            // 4. PROMPT DE APROPIACIÓN DE MARCA
                             $prompt = "
-                                Eres un Auditor Técnico SEO Senior.
-                                Analiza estos datos del sitio: {$project->domain_url}
+                                TAREA: Actúa como un Analista de Estrategia Digital y SEO Senior.
                                 
-                                DATOS:
-                                - Total URLs rastreadas: {$total}
-                                - Errores 404: {$errors404}
-                                - Sin H1: {$missingH1}
-                                - Contenido pobre (<300 palabras): {$thinContent}
-                                - Ejemplos de errores: {$badUrls}
+                                1. ANÁLISIS DE IDENTIDAD:
+                                Lee los siguientes fragmentos extraídos del sitio web de '{$project->name}' ({$project->domain_url}) y determina de qué trata el negocio, su tono de voz y su propuesta de valor.
+                                
+                                MUESTRA DE CONTENIDO RASTREADO:
+                                {$brandContext}
 
-                                TAREA:
-                                Genera un reporte HTML breve.
-                                Usa <h3> para títulos y <ul> para listas.
-                                1. Diagnóstico de Salud (0-100).
-                                2. Errores Críticos (Prioridad Alta).
-                                3. Recomendaciones rápidas.
+                                2. AUDITORÍA TÉCNICA:
+                                Analiza los siguientes datos duros encontrados en el rastreo:
+                                - Total URLs: {$total}
+                                - Errores 404 (Enlaces rotos): {$errors404} (Ejemplos: {$brokenLinksList})
+                                - Páginas sin H1: {$missingH1}
+                                - Páginas sin Meta Descripción: {$missingMeta}
+                                - Páginas con poco texto: {$thinContent}
+
+                                3. GENERACIÓN DEL REPORTE:
+                                Escribe un reporte dirigido directamente a los dueños de '{$project->name}'.
+                                - Usa el nombre del negocio ({$project->name}) naturalmente en el texto.
+                                - Adapta tu tono al giro del negocio que detectaste en el paso 1 (Ej: Si es médico, sé formal; si es restaurante, sé apetecible pero profesional).
+                                - NO uses rellenos genéricos. Ve al grano sobre cómo los errores técnicos (404, falta de H1) están afectando SU negocio específico.
+                                - Estructura HTML: <h3>Diagnóstico de Identidad</h3>, <h3>Estado de Salud SEO</h3>, <ul>Problemas Críticos</ul>, <h3>Recomendaciones Estratégicas</h3>.
+                                
+                                IMPORTANTE: Haz que parezca que conoces el negocio de toda la vida gracias a lo que leíste.
                             ";
 
                             $response = Http::withHeaders(['Content-Type' => 'application/json'])
                                 ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . $apiKey, [
                                     'contents' => [['parts' => [['text' => $prompt]]]],
-                                    'generationConfig' => ['temperature' => 0.7]
+                                    'generationConfig' => ['temperature' => 0.5]
                                 ]);
 
                             $aiReport = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? 'Error generando reporte.';
                             
-                            // Limpiar markdown si Gemini lo pone
                             $aiReport = str_replace(['```html', '```'], '', $aiReport);
 
-                            return new HtmlString("<div class='prose dark:prose-invert'>{$aiReport}</div>");
+                            return new HtmlString("<div class='prose dark:prose-invert max-w-none'>{$aiReport}</div>");
 
                         } catch (\Exception $e) {
                             return new HtmlString("<p>Error IA: {$e->getMessage()}</p>");
