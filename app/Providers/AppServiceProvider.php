@@ -3,7 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\URL; // <--- 1. IMPORTANTE: Agregamos esta línea para usar URL
+use Illuminate\Support\Facades\URL; // <--- No borres esto
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -20,9 +20,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // 2. IMPORTANTE: Agregamos este bloque para forzar HTTPS en la nube
-        if ($this->app->environment('production')) {
-            URL::forceScheme('https');
-        }
+        // Forzamos HTTPS SIEMPRE (sin preguntar el entorno)
+        URL::forceScheme('https');
     }
 }
