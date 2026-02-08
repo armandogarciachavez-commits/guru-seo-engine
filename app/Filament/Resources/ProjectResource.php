@@ -15,8 +15,12 @@ class ProjectResource extends Resource
 {
     protected static ?string $model = Project::class;
 
-    // Icono del cohete para identificar visualmente la actualización
+    // Icono de cohete para confirmar visualmente el cambio
     protected static ?string $navigationIcon = 'heroicon-o-rocket-launch';
+
+    // Etiquetas personalizadas para el menú
+    protected static ?string $navigationLabel = 'Mis Proyectos';
+    protected static ?string $modelLabel = 'Proyecto';
 
     public static function form(Form $form): Form
     {
@@ -95,7 +99,8 @@ class ProjectResource extends Resource
                     ->label('Sitio Web')
                     ->icon('heroicon-m-link')
                     ->url(fn ($record) => $record->domain_url, true) 
-                    ->color('primary'),
+                    ->color('primary')
+                    ->toggleable(),
 
                 Tables\Columns\TextColumn::make('cms_type')
                     ->label('CMS')
@@ -110,13 +115,8 @@ class ProjectResource extends Resource
                 Tables\Columns\TextColumn::make('posting_frequency')
                     ->label('Frecuencia')
                     ->icon('heroicon-m-clock')
-                    ->formatStateUsing(fn (string $state): string => ucfirst($state)),
-
-                Tables\Columns\TextColumn::make('created_at')
-                    ->label('Creado')
-                    ->dateTime('d/m/Y')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->formatStateUsing(fn (string $state): string => ucfirst($state))
+                    ->toggleable(),
             ])
             ->filters([
                 //
