@@ -15,10 +15,10 @@ class ProjectResource extends Resource
 {
     protected static ?string $model = Project::class;
 
-    // Icono de cohete para confirmar visualmente el cambio
+    // Icono de Cohete para confirmar que es la versiÃ³n nueva ðŸš€
     protected static ?string $navigationIcon = 'heroicon-o-rocket-launch';
 
-    // Etiquetas personalizadas para el menú
+    // Etiquetas para asegurar cambio visual en el menÃº
     protected static ?string $navigationLabel = 'Mis Proyectos';
     protected static ?string $modelLabel = 'Proyecto';
 
@@ -27,7 +27,7 @@ class ProjectResource extends Resource
         return $form
             ->schema([
                 Forms\Components\Section::make('Detalles del Proyecto')
-                    ->description('Información principal para la generación de contenido.')
+                    ->description('InformaciÃ³n principal para la generaciÃ³n de contenido.')
                     ->schema([
                         Forms\Components\TextInput::make('name')
                             ->label('Nombre del Proyecto')
@@ -45,13 +45,13 @@ class ProjectResource extends Resource
                             ->label('Plataforma (CMS)')
                             ->options([
                                 'wordpress' => 'WordPress',
-                                'static' => 'Sitio Estático / HTML',
+                                'static' => 'Sitio EstÃ¡tico / HTML',
                                 'custom_html' => 'Custom HTML',
                             ])
                             ->required(),
                             
                         Forms\Components\Select::make('posting_frequency')
-                            ->label('Frecuencia de Publicación')
+                            ->label('Frecuencia de PublicaciÃ³n')
                             ->options([
                                 'daily' => 'Diario',
                                 'weekly' => 'Semanal',
@@ -61,7 +61,7 @@ class ProjectResource extends Resource
                             ->required(),
                     ])->columns(2),
 
-                Forms\Components\Section::make('Identidad y Configuración')
+                Forms\Components\Section::make('Identidad y ConfiguraciÃ³n')
                     ->schema([
                         Forms\Components\TextInput::make('target_language')
                             ->label('Idioma Objetivo')
@@ -76,7 +76,7 @@ class ProjectResource extends Resource
                             ->label('Voz de Marca')
                             ->rows(4)
                             ->columnSpanFull()
-                            ->helperText('Describe cómo debe hablar la IA (Ej: Profesional, divertido, experto...)'),
+                            ->helperText('Describe cÃ³mo debe hablar la IA.'),
                     ]),
             ]);
     }
@@ -84,7 +84,7 @@ class ProjectResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            // HACER CLIC EN CUALQUIER PARTE DE LA FILA ABRE LA EDICIÓN:
+            // IMPORTANTE: Esto habilita el clic en toda la fila para editar
             ->recordUrl(
                 fn (Project $record): string => Pages\EditProject::getUrl([$record->id]),
             )
@@ -115,14 +115,16 @@ class ProjectResource extends Resource
                 Tables\Columns\TextColumn::make('posting_frequency')
                     ->label('Frecuencia')
                     ->icon('heroicon-m-clock')
-                    ->formatStateUsing(fn (string $state): string => ucfirst($state))
-                    ->toggleable(),
-            ])
-            ->filters([
-                //
+                    ->formatStateUsing(fn (string $state): string => ucfirst($state)),
+
+                Tables\Columns\TextColumn::make('created_at')
+                    ->label('Creado')
+                    ->dateTime('d/m/Y')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->actions([
-                // FORZAMOS VISUALIZACIÓN DE BOTONES (NO SOLO ICONOS)
+                // Botones explÃ­citos de Editar y Borrar
                 Tables\Actions\EditAction::make()
                     ->label('Editar')
                     ->button()
@@ -142,9 +144,7 @@ class ProjectResource extends Resource
 
     public static function getRelations(): array
     {
-        return [
-            //
-        ];
+        return [];
     }
 
     public static function getPages(): array
