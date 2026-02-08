@@ -12,17 +12,18 @@ return new class extends Migration {
     {
         Schema::create('projects', function (Blueprint $table) {
             $table->id();
+            
+            // ✅ AGREGAMOS ESTA LÍNEA QUE FALTABA:
+            $table->uuid('uuid')->unique();
+
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->string('name');
             $table->string('domain_url');
-            $table->string('target_language'); // e.g. 'es-MX'
+            $table->string('target_language'); 
             $table->text('brand_voice');
             $table->string('target_city')->nullable();
             $table->enum('cms_type', ['wordpress', 'static']);
-            
-            // ✅ AQUÍ AGREGAMOS LA COLUMNA DIRECTAMENTE Y SIN ERRORES:
             $table->enum('posting_frequency', ['daily', 'weekly', 'monthly'])->default('weekly');
-
             $table->timestamps();
         });
     }
