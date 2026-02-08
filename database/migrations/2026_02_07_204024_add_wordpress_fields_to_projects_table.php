@@ -15,7 +15,9 @@ return new class extends Migration {
             $table->string('wp_api_url')->nullable();
             $table->string('wp_username')->nullable();
             $table->string('wp_application_password')->nullable();
-            $table->enum('posting_frequency', ['daily', 'weekly'])->default('weekly');
+            
+            // ❌ BORRADO: posting_frequency (Ya existe en la tabla original)
+            
             $table->dateTime('next_run_at')->nullable();
         });
     }
@@ -31,7 +33,7 @@ return new class extends Migration {
                 'wp_api_url',
                 'wp_username',
                 'wp_application_password',
-                'posting_frequency',
+                // ❌ BORRADO: posting_frequency (No lo borramos aquí porque pertenece a la tabla original)
                 'next_run_at'
             ]);
         });
