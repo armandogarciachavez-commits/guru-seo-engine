@@ -15,8 +15,8 @@ class ProjectResource extends Resource
 {
     protected static ?string $model = Project::class;
 
-    // Cambiamos el icono para asegurarnos de que se actualice visualmente
-    protected static ?string $navigationIcon = 'heroicon-o-rocket-launch'; 
+    // Icono del cohete para identificar visualmente la actualización
+    protected static ?string $navigationIcon = 'heroicon-o-rocket-launch';
 
     public static function form(Form $form): Form
     {
@@ -80,6 +80,10 @@ class ProjectResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            // HACER CLIC EN CUALQUIER PARTE DE LA FILA ABRE LA EDICIÓN:
+            ->recordUrl(
+                fn (Project $record): string => Pages\EditProject::getUrl([$record->id]),
+            )
             ->columns([
                 Tables\Columns\TextColumn::make('name')
                     ->label('Proyecto')
@@ -90,7 +94,7 @@ class ProjectResource extends Resource
                 Tables\Columns\TextColumn::make('domain_url')
                     ->label('Sitio Web')
                     ->icon('heroicon-m-link')
-                    ->url(fn ($record) => $record->domain_url, true) // Abre en nueva pestaña
+                    ->url(fn ($record) => $record->domain_url, true) 
                     ->color('primary'),
 
                 Tables\Columns\TextColumn::make('cms_type')
@@ -118,8 +122,16 @@ class ProjectResource extends Resource
                 //
             ])
             ->actions([
-                Tables\Actions\EditAction::make(), // <--- ¡AQUÍ ESTÁ EL BOTÓN DE EDITAR!
-                Tables\Actions\DeleteAction::make(),
+                // FORZAMOS VISUALIZACIÓN DE BOTONES (NO SOLO ICONOS)
+                Tables\Actions\EditAction::make()
+                    ->label('Editar')
+                    ->button()
+                    ->color('primary'),
+
+                Tables\Actions\DeleteAction::make()
+                    ->label('Borrar')
+                    ->button()
+                    ->color('danger'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
