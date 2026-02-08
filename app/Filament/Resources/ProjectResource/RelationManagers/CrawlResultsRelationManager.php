@@ -16,8 +16,8 @@ class CrawlResultsRelationManager extends RelationManager
     protected static string $relationship = 'crawlResults';
 
     protected static ?string $recordTitleAttribute = 'title';
-    protected static ?string $title = 'Auditoría Técnica (Resultados)';
-    protected static ?string $icon = 'heroicon-m-clipboard-document-check';
+    protected static ?string $title = 'Análisis de Sitio (Crawler)';
+    protected static ?string $icon = 'heroicon-m-magnifying-glass-circle';
 
     public function form(Form $form): Form
     {
@@ -32,109 +32,109 @@ class CrawlResultsRelationManager extends RelationManager
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('status_code')
-                    ->label('Estado')
+                    ->label('Status')
                     ->badge()
                     ->color(fn (string $state): string => match (true) {
                         $state == 200 => 'success',
-                        $state >= 500 => 'danger',
-                        $state >= 400 => 'warning',
+                        $state >= 400 => 'danger',
                         default => 'gray',
                     })
                     ->sortable(),
 
                 Tables\Columns\TextColumn::make('url')
                     ->label('URL')
-                    ->searchable()
-                    ->limit(40)
+                    ->limit(30)
                     ->tooltip(fn ($record) => $record->url),
 
                 Tables\Columns\TextColumn::make('title')
-                    ->label('Meta Title')
-                    ->limit(30)
+                    ->label('Título Detectado')
+                    ->limit(40)
                     ->searchable(),
 
                 Tables\Columns\TextColumn::make('h1')
-                    ->label('H1 Principal')
-                    ->limit(30)
-                    ->description(fn (CrawlResult $record) => empty($record->h1) ? '⚠️ Falta H1' : ''),
-                
-                Tables\Columns\TextColumn::make('word_count')
-                    ->label('Palabras')
-                    ->sortable(),
+                    ->label('H1 (Tema Principal)')
+                    ->limit(40)
+                    ->description(fn (CrawlResult $record) => empty($record->h1) ? 'Sin tema definido' : ''),
             ])
             ->headerActions([
-                Tables\Actions\Action::make('analyze_audit')
-                    ->label('Analizar Identidad y SEO')
-                    ->icon('heroicon-o-cpu-chip')
-                    ->color('primary')
-                    ->modalHeading('Diagnóstico Inteligente de Sitio')
+                Tables\Actions\Action::make('analyze_master_strategy')
+                    ->label('Consultoría Estratégica (Master)')
+                    ->icon('heroicon-o-presentation-chart-bar')
+                    ->color('success')
+                    ->modalHeading('Diagnóstico Estratégico de Mercado y Contenidos')
+                    ->modalWidth('7xl') // Ventana MUY ancha para que quepan las tablas
                     ->modalSubmitAction(false)
                     ->modalContent(function ($livewire) {
-                        // 1. Datos del Proyecto
+                        // 1. Validar que existan datos
                         $project = $livewire->getOwnerRecord();
                         $results = $project->crawlResults;
 
                         if ($results->isEmpty()) {
-                            return new HtmlString('<p class="text-danger font-bold">⚠️ Primero debes ir a la pestaña anterior y pulsar "Rastrear Sitio".</p>');
+                            return new HtmlString('<p class="text-danger font-bold">⚠️ Primero debes Rastrear el Sitio.</p>');
                         }
 
-                        // 2. Extraer "ADN" de la marca desde lo rastreado
-                        // Tomamos 10 ejemplos de títulos y descripciones para que la IA entienda el giro del negocio
-                        $brandContext = $results->whereNotNull('title')->take(10)->map(function($r) {
-                            return "- Título: {$r->title} | H1: {$r->h1} | Meta: {$r->meta_description}";
+                        // 2. Preparar la "Foto Actual" del sitio
+                        // Tomamos hasta 50 URLs para dar un contexto profundo
+                        $siteMapData = $results->where('status_code', 200)->take(50)->map(function($r) {
+                            $h1 = $r->h1 ?: '(Sin H1)';
+                            $title = $r->title ?: '(Sin Título)';
+                            return "URL: {$r->url} | H1: {$h1} | TITLE: {$title}";
                         })->implode("\n");
 
-                        // 3. Estadísticas Técnicas
-                        $total = $results->count();
-                        $errors404 = $results->where('status_code', 404)->count();
-                        $missingH1 = $results->where('h1', null)->count();
-                        $missingMeta = $results->where('meta_description', null)->count();
-                        $thinContent = $results->where('word_count', '<', 300)->count();
-                        
-                        $brokenLinksList = $results->where('status_code', 404)->take(3)->pluck('url')->implode(', ');
+                        $ciudad = $project->target_city ?? 'Ubicación del cliente';
+                        $idioma = $project->target_language ?? 'Español';
 
                         try {
                             $apiKey = env('GEMINI_API_KEY');
                             
-                            // 4. PROMPT DE APROPIACIÓN DE MARCA
+                            // 3. EL PROMPT MAESTRO (Tu versión ajustada)
                             $prompt = "
-                                TAREA: Actúa como un Analista de Estrategia Digital y SEO Senior.
-                                
-                                1. ANÁLISIS DE IDENTIDAD:
-                                Lee los siguientes fragmentos extraídos del sitio web de '{$project->name}' ({$project->domain_url}) y determina de qué trata el negocio, su tono de voz y su propuesta de valor.
-                                
-                                MUESTRA DE CONTENIDO RASTREADO:
-                                {$brandContext}
+                                ROL: Actúa como consultor senior en SEO estratégico y análisis de mercado digital.
+                                TAREA: Analiza la estructura actual del sitio web y entrega un diagnóstico claro y accionable para dominar el mercado.
 
-                                2. AUDITORÍA TÉCNICA:
-                                Analiza los siguientes datos duros encontrados en el rastreo:
-                                - Total URLs: {$total}
-                                - Errores 404 (Enlaces rotos): {$errors404} (Ejemplos: {$brokenLinksList})
-                                - Páginas sin H1: {$missingH1}
-                                - Páginas sin Meta Descripción: {$missingMeta}
-                                - Páginas con poco texto: {$thinContent}
+                                --- DATOS DE ENTRADA ---
+                                SITIO WEB (Estructura Rastreada):
+                                {$siteMapData}
 
-                                3. GENERACIÓN DEL REPORTE:
-                                Escribe un reporte dirigido directamente a los dueños de '{$project->name}'.
-                                - Usa el nombre del negocio ({$project->name}) naturalmente en el texto.
-                                - Adapta tu tono al giro del negocio que detectaste en el paso 1 (Ej: Si es médico, sé formal; si es restaurante, sé apetecible pero profesional).
-                                - NO uses rellenos genéricos. Ve al grano sobre cómo los errores técnicos (404, falta de H1) están afectando SU negocio específico.
-                                - Estructura HTML: <h3>Diagnóstico de Identidad</h3>, <h3>Estado de Salud SEO</h3>, <ul>Problemas Críticos</ul>, <h3>Recomendaciones Estratégicas</h3>.
-                                
-                                IMPORTANTE: Haz que parezca que conoces el negocio de toda la vida gracias a lo que leíste.
+                                UBICACIÓN / MERCADO OBJETIVO:
+                                {$ciudad} ({$idioma})
+
+                                --- INSTRUCCIONES DE ANÁLISIS ---
+                                1. Identifica: Servicios principales, Propuesta de valor y Público objetivo probable basándote en los H1 y Títulos actuales.
+                                2. Detecta: Nichos explotables y servicios relacionados que NO están en la lista de arriba.
+                                3. Analiza brechas: Compara mentalmente contra los LÍDERES TÍPICOS DE ESTE SECTOR en {$ciudad} y dime qué tienen ellos que este sitio no.
+                                4. Encuentra oportunidades: Nuevas páginas, clusters y preguntas frecuentes.
+
+                                --- FORMATO DE SALIDA (ESTRICTO HTML) ---
+                                Genera el reporte usando tablas HTML (<table class='w-full border-collapse border border-gray-300'>) para la información densa y listas (<ul>) para ideas.
+
+                                A. SERVICIOS ACTUALES DETECTADOS (Tabla: URL | Servicio Identificado | Calidad del Enfoque)
+                                B. NICHOS Y OPORTUNIDADES (Lista detallada de subnichos no explotados)
+                                C. BRECHAS FRENTE A COMPETIDORES (Tabla: Qué tiene la competencia | Por qué es importante | Falta en este sitio (Sí/No))
+                                D. PÁGINAS NUEVAS RECOMENDADAS (Tabla: Título Propuesto (H1) | Intención de Búsqueda | Objetivo)
+                                E. 10 IDEAS DE CONTENIDO PRIORITARIO (Lista numerada con títulos gancho)
+                                F. RECOMENDACIONES ESTRATÉGICAS INMEDIATAS (Prioriza acciones < 90 días para tráfico/clientes)
+
+                                NOTA FINAL: Sé brutalmente honesto. Si el sitio está vacío o mal enfocado, dilo. Tu objetivo es hacer que el cliente gane dinero.
                             ";
 
                             $response = Http::withHeaders(['Content-Type' => 'application/json'])
                                 ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . $apiKey, [
                                     'contents' => [['parts' => [['text' => $prompt]]]],
-                                    'generationConfig' => ['temperature' => 0.5]
+                                    'generationConfig' => ['temperature' => 0.5] // Balance entre creatividad y análisis
                                 ]);
 
-                            $aiReport = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? 'Error generando reporte.';
+                            $aiReport = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? 'Error generando estrategia.';
                             
+                            // Limpieza básica de Markdown a HTML si la IA se confunde
                             $aiReport = str_replace(['```html', '```'], '', $aiReport);
+                            
+                            // Estilos básicos para las tablas dentro del modal (Tailwind)
+                            $aiReport = str_replace('<table>', '<table class="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400 border border-gray-200">', $aiReport);
+                            $aiReport = str_replace('<th>', '<th class="px-6 py-3 bg-gray-50 dark:bg-gray-800 border-b border-gray-200">', $aiReport);
+                            $aiReport = str_replace('<td>', '<td class="px-6 py-4 border-b border-gray-200">', $aiReport);
 
-                            return new HtmlString("<div class='prose dark:prose-invert max-w-none'>{$aiReport}</div>");
+                            return new HtmlString("<div class='prose dark:prose-invert max-w-none space-y-4'>{$aiReport}</div>");
 
                         } catch (\Exception $e) {
                             return new HtmlString("<p>Error IA: {$e->getMessage()}</p>");
