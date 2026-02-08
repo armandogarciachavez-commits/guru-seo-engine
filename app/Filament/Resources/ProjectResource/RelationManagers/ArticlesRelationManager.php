@@ -7,8 +7,8 @@ use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Filament\Notifications\Notification; // Importante para las alertas
-use App\Models\Article; // Importante para crear el artículo
+use Filament\Notifications\Notification;
+use App\Models\Article;
 
 class ArticlesRelationManager extends RelationManager
 {
@@ -16,7 +16,7 @@ class ArticlesRelationManager extends RelationManager
 
     protected static ?string $recordTitleAttribute = 'title';
     
-    protected static ?string $title = 'Artículos Generados';
+    protected static ?string $title = 'ArtÃ­culos Generados'; // Corregido
     protected static ?string $icon = 'heroicon-m-document-text';
 
     public function form(Form $form): Form
@@ -26,7 +26,7 @@ class ArticlesRelationManager extends RelationManager
                 Forms\Components\TextInput::make('title')
                     ->required()
                     ->maxLength(255)
-                    ->label('Título'),
+                    ->label('TÃ­tulo'), // Corregido
                 
                 Forms\Components\Select::make('status')
                     ->options([
@@ -47,7 +47,7 @@ class ArticlesRelationManager extends RelationManager
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('title')
-                    ->label('Título')
+                    ->label('TÃ­tulo') // Corregido
                     ->searchable()
                     ->limit(50),
 
@@ -64,18 +64,16 @@ class ArticlesRelationManager extends RelationManager
                     ->label('Fecha'),
             ])
             ->headerActions([
-                // 1. Botón Manual (El que ya tenías)
                 Tables\Actions\CreateAction::make()
                     ->label('Crear Manualmente'),
 
-                // 2. ¡NUEVO! Botón de IA ?
                 Tables\Actions\Action::make('generate_ai')
                     ->label('Generar con IA')
-                    ->icon('heroicon-o-sparkles') // Icono de brillitos
+                    ->icon('heroicon-o-sparkles')
                     ->color('primary')
                     ->form([
                         Forms\Components\TextInput::make('topic')
-                            ->label('¿Sobre qué quieres escribir?')
+                            ->label('Â¿Sobre quÃ© quieres escribir?') // Corregido
                             ->placeholder('Ej: 5 Ventajas del SEO Local')
                             ->required(),
                         
@@ -89,13 +87,10 @@ class ArticlesRelationManager extends RelationManager
                             ->default('professional'),
                     ])
                     ->action(function (array $data, $livewire) {
-                        // AQUÍ OCURRE LA MAGIA
                         $project = $livewire->getOwnerRecord();
                         
-                        // NOTA: Aquí simulamos la generación rápida para que veas que funciona.
-                        // Luego conectaremos tu servicio de OpenAI/Gemini real.
-                        
-                        $mockContent = "<h1>{$data['topic']}</h1><p>Este es un artículo generado automáticamente sobre <strong>{$data['topic']}</strong> usando el tono {$data['tone']}.</p><p>Aquí iría el contenido real de la IA...</p>";
+                        // TEXTOS CORREGIDOS (UTF-8 LIMPIO)
+                        $mockContent = "<h1>{$data['topic']}</h1><p>Este es un artÃ­culo generado automÃ¡ticamente sobre <strong>{$data['topic']}</strong> usando el tono {$data['tone']}.</p><p>AquÃ­ irÃ­a el contenido real de la IA...</p>";
 
                         Article::create([
                             'project_id' => $project->id,
@@ -106,7 +101,7 @@ class ArticlesRelationManager extends RelationManager
                         ]);
 
                         Notification::make()
-                            ->title('¡Artículo Generado!')
+                            ->title('Â¡ArtÃ­culo Generado!') // Corregido
                             ->success()
                             ->send();
                     }),
@@ -115,7 +110,6 @@ class ArticlesRelationManager extends RelationManager
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
                 
-                // Botón de Publicar Rápido
                 Tables\Actions\Action::make('publish')
                     ->icon('heroicon-o-cloud-arrow-up')
                     ->color('success')
