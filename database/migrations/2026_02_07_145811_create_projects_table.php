@@ -19,6 +19,10 @@ return new class extends Migration {
             $table->text('brand_voice');
             $table->string('target_city')->nullable();
             $table->enum('cms_type', ['wordpress', 'static']);
+            
+            // ✅ AQUÍ AGREGAMOS LA COLUMNA DIRECTAMENTE Y SIN ERRORES:
+            $table->enum('posting_frequency', ['daily', 'weekly', 'monthly'])->default('weekly');
+
             $table->timestamps();
         });
     }
