@@ -9,7 +9,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Notifications\Notification;
 use App\Models\Article;
-use OpenAI; // <--- IMPORTANTE: Usamos el Cliente Universal
+use OpenAI; // <--- Cliente Universal
 
 class ArticlesRelationManager extends RelationManager
 {
@@ -69,9 +69,9 @@ class ArticlesRelationManager extends RelationManager
                     ->label('Crear Manualmente'),
 
                 Tables\Actions\Action::make('generate_ai')
-                    ->label('Generar con IA')
+                    ->label('Generar con OpenAI')
                     ->icon('heroicon-o-sparkles')
-                    ->color('primary')
+                    ->color('success') // Color verde OpenAI
                     ->form([
                         Forms\Components\TextInput::make('topic')
                             ->label('¿Sobre qué quieres escribir?')
@@ -91,21 +91,21 @@ class ArticlesRelationManager extends RelationManager
                     ->action(function (array $data, $livewire) {
                         $project = $livewire->getOwnerRecord();
                         
-                        // 1. Notificación de inicio
                         Notification::make()
-                            ->title('Escribiendo artículo...')
-                            ->body('Esto puede tardar unos 10-20 segundos.')
+                            ->title('OpenAI está escribiendo...')
+                            ->body('Espera unos segundos mientras pensamos...')
                             ->info()
                             ->send();
 
                         try {
-                            // 2. Obtener API Key y Configurar Cliente
+                            // 1. Obtener la Clave del entorno
                             $apiKey = env('OPENAI_API_KEY');
                             
                             if (empty($apiKey)) {
-                                throw new \Exception('No se encontró la API KEY de OpenAI en el archivo .env');
+                                throw new \Exception('Falta la OPENAI_API_KEY en el archivo .env');
                             }
 
+                            // 2. Conectar Cliente
                             $client = OpenAI::client($apiKey);
 
                             // 3. Crear el Prompt
@@ -116,28 +116,27 @@ class ArticlesRelationManager extends RelationManager
                                 Requisitos:
                                 - Tono: {$data['tone']}.
                                 - Idioma: Español.
-                                - Formato: HTML puro (usa h2, h3, p, ul, li, strong). NO uses h1 (ya lo tengo).
-                                - Estructura: Introducción, 3-5 puntos clave, Conclusión.
-                                - Longitud: Aprox 500-800 palabras.
-                                - NO incluyas etiquetas <html>, <head> o markdown (```html). Solo el cuerpo del texto.
+                                - Formato: HTML puro (usa h2, h3, p, ul, li, strong). NO uses h1.
+                                - Estructura: Introducción, Desarrollo, Conclusión.
+                                - Longitud: Aprox 600 palabras.
+                                - IMPORTANTE: Solo devuelve el código HTML del contenido.
                             ";
 
-                            // 4. Llamar a la IA (GPT-4o-mini)
+                            // 4. Llamada a GPT-4o-mini
                             $response = $client->chat()->create([
                                 'model' => 'gpt-4o-mini',
                                 'messages' => [
-                                    ['role' => 'system', 'content' => 'Eres un redactor de contenidos experto en SEO.'],
+                                    ['role' => 'system', 'content' => 'Eres un redactor SEO experto.'],
                                     ['role' => 'user', 'content' => $prompt],
                                 ],
-                                'temperature' => 0.7,
                             ]);
 
                             $aiContent = $response->choices[0]->message->content;
 
-                            // Limpiar si la IA pone bloques de código markdown
+                            // Limpiar markdown
                             $aiContent = str_replace(['```html', '```'], '', $aiContent);
 
-                            // 5. Guardar en Base de Datos
+                            // 5. Guardar
                             Article::create([
                                 'project_id' => $project->id,
                                 'title' => $data['topic'],
@@ -147,13 +146,13 @@ class ArticlesRelationManager extends RelationManager
                             ]);
 
                             Notification::make()
-                                ->title('¡Artículo Terminado!')
+                                ->title('¡Artículo OpenAI Generado!')
                                 ->success()
                                 ->send();
 
                         } catch (\Exception $e) {
                             Notification::make()
-                                ->title('Error de IA')
+                                ->title('Error de OpenAI')
                                 ->body($e->getMessage())
                                 ->danger()
                                 ->send();
