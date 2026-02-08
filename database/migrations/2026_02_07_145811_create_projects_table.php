@@ -13,7 +13,7 @@ return new class extends Migration {
         Schema::create('projects', function (Blueprint $table) {
             $table->id();
             
-            // ✅ AGREGAMOS ESTA LÍNEA QUE FALTABA:
+            // ✅ Mantenemos el UUID que arreglamos antes:
             $table->uuid('uuid')->unique();
 
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
@@ -22,8 +22,13 @@ return new class extends Migration {
             $table->string('target_language'); 
             $table->text('brand_voice');
             $table->string('target_city')->nullable();
-            $table->enum('cms_type', ['wordpress', 'static']);
+            
+            // ✅ CORRECCIÓN AQUÍ: Agregamos 'custom_html' a la lista permitida
+            $table->enum('cms_type', ['wordpress', 'static', 'custom_html']);
+            
+            // ✅ Mantenemos la frecuencia:
             $table->enum('posting_frequency', ['daily', 'weekly', 'monthly'])->default('weekly');
+            
             $table->timestamps();
         });
     }
