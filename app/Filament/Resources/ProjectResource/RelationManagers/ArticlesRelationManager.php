@@ -69,13 +69,13 @@ class ArticlesRelationManager extends RelationManager
                     ->label('Crear Manualmente'),
 
                 Tables\Actions\Action::make('generate_ai')
-                    ->label('Generar con Gemini 1.5 PRO')
+                    ->label('Generar con Gemini 2.5 PRO') // <--- ¡EL FUTURO!
                     ->icon('heroicon-o-sparkles')
-                    ->color('danger') // Color Rojo (Potencia Máxima)
+                    ->color('warning') // Color Dorado/Premium
                     ->form([
                         Forms\Components\TextInput::make('topic')
                             ->label('¿Sobre qué quieres escribir?')
-                            ->placeholder('Ej: Estrategias de SEO Técnico 2026')
+                            ->placeholder('Ej: Guía definitiva de Link Building 2026')
                             ->required(),
                         
                         Forms\Components\Select::make('tone')
@@ -92,8 +92,8 @@ class ArticlesRelationManager extends RelationManager
                         $project = $livewire->getOwnerRecord();
                         
                         Notification::make()
-                            ->title('Gemini 1.5 Pro (001) trabajando...')
-                            ->body('Usando versión estable de alta capacidad...')
+                            ->title('Gemini 2.5 Pro trabajando...')
+                            ->body('Usando modelo de última generación. Espera un momento...')
                             ->warning()
                             ->send();
 
@@ -104,29 +104,26 @@ class ArticlesRelationManager extends RelationManager
                                 throw new \Exception('No se encontró GEMINI_API_KEY en el archivo .env');
                             }
 
-                            // 1. Prompt Maestro para aprovechar el modelo 1.5
+                            // 1. Prompt "Ultra-High-End" (Para modelo 2.5)
                             $prompt = "
-                                Eres un Redactor SEO Senior.
-                                OBJETIVO: Escribir el mejor artículo posible sobre '{$data['topic']}'.
+                                Actúa como un experto mundial en SEO y Copywriting.
+                                TEMA: '{$data['topic']}'.
+                                TONO: {$data['tone']}.
                                 
-                                CONFIGURACIÓN:
-                                - Modelo: Gemini 1.5 Pro.
-                                - Tono: {$data['tone']}.
-                                - Formato: HTML Semántico (h2, h3, p, ul, li, strong). NO uses h1.
-                                - Longitud: Extensa (+1000 palabras).
+                                INSTRUCCIONES:
+                                1. Escribe un artículo EXTENSO y PROFUNDO (+1200 palabras).
+                                2. Usa formato HTML semántico impecable (h2, h3, p, ul, li, strong, blockquote). NO uses h1.
+                                3. Estructura: 
+                                   - Introducción impactante.
+                                   - Desarrollo exhaustivo con datos y ejemplos.
+                                   - Conclusión accionable.
+                                4. Estilo: Fluido, humano, sin repeticiones robóticas.
                                 
-                                ESTRUCTURA:
-                                1. Intro poderosa (Pain-Agitate-Solution).
-                                2. Desarrollo profundo del tema.
-                                3. Ejemplos prácticos o listas.
-                                4. Conclusión.
-                                
-                                IMPORTANTE: Solo devuelve el código HTML limpio.
+                                IMPORTANTE: Devuelve SOLO el código HTML limpio.
                             ";
 
-                            // 2. URL DEL MODELO EXACTO (Versión 001 - Producción Estable)
-                            // Si esta falla, tu cuenta no tiene acceso a la serie 1.5 en absoluto.
-                            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-001:generateContent?key=" . $apiKey;
+                            // 2. URL DEL MODELO GEMINI 2.5 PRO (Confirmado en tu lista)
+                            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=" . $apiKey;
 
                             // 3. Payload
                             $payload = [
@@ -138,8 +135,10 @@ class ArticlesRelationManager extends RelationManager
                                     ]
                                 ],
                                 'generationConfig' => [
-                                    'temperature' => 0.8,
-                                    'maxOutputTokens' => 8192, // Alta capacidad
+                                    'temperature' => 0.7,
+                                    'topK' => 40,
+                                    'topP' => 0.95,
+                                    'maxOutputTokens' => 8192, // Alta capacidad de salida
                                 ]
                             ];
 
@@ -173,7 +172,8 @@ class ArticlesRelationManager extends RelationManager
                             ]);
 
                             Notification::make()
-                                ->title('¡Contenido Premium Generado!')
+                                ->title('¡Contenido Generación 2.5 Creado!')
+                                ->body('Artículo generado con el modelo más avanzado disponible.')
                                 ->success()
                                 ->send();
 
