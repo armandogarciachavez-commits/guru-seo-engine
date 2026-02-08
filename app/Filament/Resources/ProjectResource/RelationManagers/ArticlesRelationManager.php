@@ -100,6 +100,7 @@ class ArticlesRelationManager extends RelationManager
                         try {
                             $apiKey = env('GEMINI_API_KEY');
                             
+                            // Validación básica
                             if (empty($apiKey)) {
                                 throw new \Exception('No se encontró GEMINI_API_KEY en el archivo .env');
                             }
@@ -118,10 +119,13 @@ class ArticlesRelationManager extends RelationManager
                                 - IMPORTANTE: Solo devuelve el código HTML del contenido, sin ```html ni explicaciones extra.
                             ";
 
-                            // 2. Llamada directa a la API de Google (Sin librerías extrañas)
+                            // 2. Definir la URL limpia (sin basura de markdown)
+                            $url = "[https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=)" . $apiKey;
+
+                            // 3. Llamada a la API
                             $response = Http::withHeaders([
                                 'Content-Type' => 'application/json',
-                            ])->post("[https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=){$apiKey}", [
+                            ])->post($url, [
                                 'contents' => [
                                     [
                                         'parts' => [
@@ -131,12 +135,12 @@ class ArticlesRelationManager extends RelationManager
                                 ]
                             ]);
 
-                            // 3. Verificar errores
+                            // 4. Verificar errores de la API
                             if ($response->failed()) {
-                                throw new \Exception('Error de Google: ' . $response->body());
+                                throw new \Exception('Error de Google Gemini: ' . $response->body());
                             }
 
-                            // 4. Extraer el texto de la respuesta JSON
+                            // 5. Extraer y limpiar respuesta
                             $json = $response->json();
                             $aiContent = $json['candidates'][0]['content']['parts'][0]['text'] ?? '';
 
@@ -147,7 +151,7 @@ class ArticlesRelationManager extends RelationManager
                             // Limpiar markdown si Gemini lo pone
                             $aiContent = str_replace(['```html', '```'], '', $aiContent);
 
-                            // 5. Guardar
+                            // 6. Guardar en Base de Datos
                             Article::create([
                                 'project_id' => $project->id,
                                 'title' => $data['topic'],
@@ -161,6 +165,12 @@ class ArticlesRelationManager extends RelationManager
                                 ->success()
                                 ->send();
 
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('Error de IA')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
                         } catch (\Exception $e) {
                             Notification::make()
                                 ->title('Error de IA')
