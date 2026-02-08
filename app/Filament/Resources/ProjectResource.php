@@ -144,7 +144,10 @@ class ProjectResource extends Resource
 
     public static function getRelations(): array
     {
-        return [];
+        return [
+            // Aquí registramos el manager que acabamos de crear
+            RelationManagers\ArticlesRelationManager::class,
+        ];
     }
 
     public static function getPages(): array
