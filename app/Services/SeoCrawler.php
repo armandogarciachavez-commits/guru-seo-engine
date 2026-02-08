@@ -20,19 +20,17 @@ class SeoCrawler extends CrawlObserver
     }
 
     /**
-     * Función mágica para limpiar caracteres extraños (UTF-8 Fixer)
+     * Limpieza NUCLEAR de texto
      */
     private function cleanText(?string $text): ?string
     {
         if ($text === null) return null;
 
-        // 1. Detectar si no es UTF-8 y convertirlo
-        if (!mb_check_encoding($text, 'UTF-8')) {
-            $text = mb_convert_encoding($text, 'UTF-8', 'auto');
-        }
+        // 1. Convertir a UTF-8 ignorando caracteres ilegales
+        // 'IGNORE' descarta lo que no puede leer
+        $text = iconv(mb_detect_encoding($text, mb_detect_order(), true) ?: 'UTF-8', 'UTF-8//IGNORE', $text);
 
-        // 2. Eliminar caracteres de control invisibles que rompen JSON
-        // (Mantiene saltos de línea y tabulaciones, quita el resto)
+        // 2. Eliminar caracteres de control invisibles (excepto saltos de línea)
         $text = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $text);
 
         return trim($text);
@@ -51,22 +49,16 @@ class SeoCrawler extends CrawlObserver
 
         $html = (string) $response->getBody();
         
-        // --- INICIO DE LA LIMPIEZA ---
-        // Silenciar errores de HTML mal formado
+        // Limpiar HTML antes de cargarlo
+        $html = mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8');
+        
         libxml_use_internal_errors(true); 
         $dom = new DOMDocument();
-        
-        // Truco: Forzar UTF-8 al cargar el HTML
-        $html = mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8');
         @$dom->loadHTML($html);
         libxml_clear_errors();
-        // --- FIN DE LA LIMPIEZA ---
 
-        // Extraer H1
-        $h1Node = $dom->getElementsByTagName('h1')->item(0);
-        $h1 = $h1Node ? $h1Node->nodeValue : null;
+        $h1 = $dom->getElementsByTagName('h1')->item(0)?->nodeValue;
 
-        // Extraer Meta Description
         $metaDescription = '';
         $metas = $dom->getElementsByTagName('meta');
         foreach ($metas as $meta) {
@@ -75,18 +67,15 @@ class SeoCrawler extends CrawlObserver
             }
         }
 
-        // Extraer Título
-        $titleNode = $dom->getElementsByTagName('title')->item(0);
-        $title = $titleNode ? $titleNode->nodeValue : null;
+        $title = $dom->getElementsByTagName('title')->item(0)?->nodeValue;
 
-        // Guardar usando el limpiador
         CrawlResult::create([
             'project_id' => $this->project->id,
             'url' => (string) $url,
             'status_code' => $response->getStatusCode(),
-            'title' => $this->cleanText($title), // <--- Limpiando
-            'h1' => $this->cleanText($h1),       // <--- Limpiando
-            'meta_description' => $this->cleanText($metaDescription), // <--- Limpiando
+            'title' => $this->cleanText($title), 
+            'h1' => $this->cleanText($h1),       
+            'meta_description' => $this->cleanText($metaDescription), 
             'word_count' => str_word_count(strip_tags($html)),
         ]);
     }
@@ -97,7 +86,6 @@ class SeoCrawler extends CrawlObserver
         ?UriInterface $foundOnUrl = null,
         ?string $linkText = null 
     ): void {
-        // También limpiamos el mensaje de error por si acaso trae basura binaria
         $errorMsg = $this->cleanText($requestException->getMessage());
 
         CrawlResult::create([
@@ -105,7 +93,7 @@ class SeoCrawler extends CrawlObserver
             'url' => (string) $url,
             'status_code' => $requestException->getCode() ?: 500, 
             'title' => 'Error de Rastreo',
-            'h1' => 'Error: ' . substr($errorMsg, 0, 200), // Cortamos para no saturar
+            'h1' => 'Error: ' . substr($errorMsg, 0, 200),
         ]);
     }
 }

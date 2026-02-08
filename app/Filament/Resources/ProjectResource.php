@@ -79,7 +79,7 @@ class ProjectResource extends Resource
                         Forms\Components\Textarea::make('brand_voice')
                             ->label('Voz de Marca')
                             ->rows(3)
-                            ->placeholder('Ej: Profesional, amigable, experto...') // <--- CORREGIDO AQUÍ
+                            ->placeholder('Ej: Profesional, amigable, experto...')
                             ->columnSpanFull(),
                     ])->columns(2),
             ]);
@@ -110,20 +110,18 @@ class ProjectResource extends Resource
                     ->label('CMS'),
             ])
             ->actions([
-                // Acción de Auditoría SEO (Crawler)
                 Tables\Actions\Action::make('audit_site')
                     ->label('Rastrear Sitio')
                     ->icon('heroicon-o-eye')
                     ->color('warning')
                     ->requiresConfirmation()
                     ->modalHeading('¿Iniciar Auditoría Técnica?')
-                    ->modalDescription('El sistema analizará la estructura del sitio, H1, Metas y enlaces. Esto puede tardar varios minutos.')
+                    ->modalDescription('El sistema analizará la estructura del sitio. Esto puede tardar varios minutos.')
                     ->modalSubmitActionLabel('Sí, Iniciar Rastreo')
                     ->action(function (Project $record) {
                         set_time_limit(600);
                         ini_set('max_execution_time', 600);
 
-                        // Limpiar resultados anteriores
                         CrawlResult::where('project_id', $record->id)->delete();
 
                         $url = $record->domain_url;
@@ -145,9 +143,13 @@ class ProjectResource extends Resource
                                 ->send();
 
                         } catch (\Exception $e) {
+                            // --- LIMPIEZA DE ERROR CRÍTICA ---
+                            // Esto evita que un mensaje de error con basura rompa Livewire
+                            $cleanMessage = mb_convert_encoding($e->getMessage(), 'UTF-8', 'UTF-8');
+                            
                             Notification::make()
                                 ->title('Error en Rastreo')
-                                ->body($e->getMessage())
+                                ->body($cleanMessage)
                                 ->danger()
                                 ->send();
                         }
@@ -167,7 +169,7 @@ class ProjectResource extends Resource
     {
         return [
             RelationManagers\ArticlesRelationManager::class,
-            RelationManagers\CrawlResultsRelationManager::class, // <--- AGREGADA AQUÍ
+            RelationManagers\CrawlResultsRelationManager::class,
         ];
     }
 
