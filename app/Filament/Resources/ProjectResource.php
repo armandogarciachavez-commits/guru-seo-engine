@@ -29,7 +29,7 @@ class ProjectResource extends Resource
         return $form
             ->schema([
                 Forms\Components\Section::make('Detalles del Proyecto')
-                    ->description('Configuración principal.')
+                    ->description('Configuraciï¿½n principal.')
                     ->schema([
                         Forms\Components\TextInput::make('name')
                             ->required()
@@ -46,7 +46,7 @@ class ProjectResource extends Resource
                         Forms\Components\Select::make('cms_type')
                             ->options([
                                 'wordpress' => 'WordPress',
-                                'static' => 'Sitio Estático / HTML',
+                                'static' => 'Sitio Estï¿½tico / HTML',
                                 'custom_html' => 'Custom HTML',
                             ])
                             ->required()
@@ -63,7 +63,7 @@ class ProjectResource extends Resource
                             ->label('Frecuencia'),
                     ])->columns(2),
 
-                Forms\Components\Section::make('Configuración de Contenido')
+                Forms\Components\Section::make('Configuraciï¿½n de Contenido')
                     ->schema([
                         Forms\Components\TextInput::make('target_language')
                             ->label('Idioma Objetivo')
@@ -115,9 +115,9 @@ class ProjectResource extends Resource
                     ->icon('heroicon-o-eye')
                     ->color('warning')
                     ->requiresConfirmation()
-                    ->modalHeading('¿Iniciar Auditoría Técnica?')
-                    ->modalDescription('El sistema analizará la estructura del sitio. Esto puede tardar varios minutos.')
-                    ->modalSubmitActionLabel('Sí, Iniciar Rastreo')
+                    ->modalHeading('ï¿½Iniciar Auditorï¿½a Tï¿½cnica?')
+                    ->modalDescription('El sistema analizarï¿½ la estructura del sitio. Esto puede tardar varios minutos.')
+                    ->modalSubmitActionLabel('Sï¿½, Iniciar Rastreo')
                     ->action(function (Project $record) {
                         set_time_limit(600);
                         ini_set('max_execution_time', 600);
@@ -138,12 +138,12 @@ class ProjectResource extends Resource
 
                             Notification::make()
                                 ->title('Rastreo Completado')
-                                ->body('Se han analizado las páginas del sitio.')
+                                ->body('Se han analizado las pï¿½ginas del sitio.')
                                 ->success()
                                 ->send();
 
                         } catch (\Exception $e) {
-                            // --- LIMPIEZA DE ERROR CRÍTICA ---
+                            // --- LIMPIEZA DE ERROR CRï¿½TICA ---
                             // Esto evita que un mensaje de error con basura rompa Livewire
                             $cleanMessage = mb_convert_encoding($e->getMessage(), 'UTF-8', 'UTF-8');
                             
