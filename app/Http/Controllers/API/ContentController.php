@@ -1,30 +1,13 @@
 <?php
 
-namespace App\Http\Controllers\Api;
-
-use App\Http\Controllers\Controller;
-use App\Models\Project;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+// IMPORTANTE: Usamos el NUEVO nombre
+use App\Http\Controllers\Api\WidgetContentController; 
 
-class ContentController extends Controller
-{
-    public function getArticles($uuid)
-    {
-        // Validación básica
-        if (!$uuid) return response()->json(['error' => 'Falta UUID'], 400);
+Route::get('/user', function (Request $request) {
+    return $request->user();
+})->middleware('auth:sanctum');
 
-        $project = Project::where('uuid', $uuid)->first();
-        if (!$project) return response()->json(['error' => 'Proyecto no encontrado'], 404);
-
-        $articles = $project->articles()
-            ->whereIn('status', ['generated', 'published']) 
-            ->orderBy('scheduled_date', 'desc')
-            ->take(10)
-            ->get(['title', 'content', 'scheduled_date', 'keyword', 'status']);
-
-        return response()->json([
-            'site' => $project->name,
-            'articles' => $articles
-        ]);
-    }
-}
+// Ruta apuntando al NUEVO controlador
+Route::get('/v1/widget/{uuid}', [WidgetContentController::class, 'getArticles']);
