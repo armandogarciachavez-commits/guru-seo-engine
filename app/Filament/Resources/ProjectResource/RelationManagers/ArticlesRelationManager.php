@@ -15,8 +15,8 @@ class ArticlesRelationManager extends RelationManager
 {
     protected static string $relationship = 'articles';
 
-    protected static ?string $title = 'Artículos Generados'; // Título profesional restaurado
-    protected static ?string $icon = 'heroicon-m-document-text';
+    protected static ?string $title = 'Calendario Editorial & Redacción'; // Título más descriptivo
+    protected static ?string $icon = 'heroicon-m-calendar-days';
 
     public function form(Form $form): Form
     {
@@ -31,8 +31,9 @@ class ArticlesRelationManager extends RelationManager
                     ->schema([
                         Forms\Components\TextInput::make('keyword')
                             ->label('Palabra Clave'),
-                        Forms\Components\DatePicker::make('scheduled_date')
-                            ->label('Fecha Programada'),
+                        Forms\Components\DateTimePicker::make('scheduled_date') // DateTimePicker para elegir hora también
+                            ->label('Fecha y Hora de Publicación')
+                            ->required(),
                     ]),
 
                 Forms\Components\RichEditor::make('content')
@@ -46,59 +47,59 @@ class ArticlesRelationManager extends RelationManager
         return $table
             ->recordTitleAttribute('title')
             ->columns([
-                // 1. TÍTULO (Primero, como debe ser)
+                // 1. TÍTULO
                 Tables\Columns\TextColumn::make('title')
-                    ->label('Título')
-                    ->limit(50)
+                    ->label('Título del Artículo')
+                    ->limit(40)
                     ->searchable()
-                    ->weight('bold'), // Negrita para que destaque
+                    ->weight('bold')
+                    ->tooltip(fn (Article $record): string => $record->title),
 
-                // 2. ESTADO (Con colores bonitos)
+                // 2. ESTADO
                 Tables\Columns\TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
-                        'pending' => 'gray',     // Pendiente
-                        'generated' => 'warning', // Redactado (Amarillo)
-                        'published' => 'success', // Publicado (Verde)
+                        'pending' => 'gray',
+                        'generated' => 'warning',
+                        'published' => 'success',
                         default => 'gray',
                     }),
 
-                // 3. FECHA (Al final)
+                // 3. FECHA Y HORA (Formato solicitado)
                 Tables\Columns\TextColumn::make('scheduled_date')
-                    ->label('Fecha')
-                    ->date('d/m/Y') // Formato día/mes/año
-                    ->sortable(),
+                    ->label('Fecha Programada')
+                    ->dateTime('d/m/Y h:i A') // Ej: 10/02/2026 04:30 PM
+                    ->sortable()
+                    ->icon('heroicon-m-calendar'),
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make()->label('Crear Manualmente'),
+                Tables\Actions\CreateAction::make()->label('Agregar Manualmente'),
             ])
             ->actions([
-                // --- BOTÓN IA QUE YA FUNCIONA ---
+                // --- BOTÓN IA ---
                 Tables\Actions\Action::make('write_article_ai')
                     ->label('Redactar IA')
                     ->icon('heroicon-o-sparkles')
-                    ->color('info') // Azulito
+                    ->color('info')
                     ->requiresConfirmation()
-                    ->modalHeading('¿Redactar este artículo?')
-                    ->modalDescription('La IA generará el contenido basándose en el título y la ciudad del proyecto.')
+                    ->modalHeading('Generar Contenido')
                     ->action(function (Article $record, $livewire) {
-                        // 1. Obtener datos
                         $project = $livewire->getOwnerRecord();
                         $ciudad = $project->target_city ?? 'Local';
                         $contexto = $project->seo_strategy ?? 'Negocio Profesional';
 
                         try {
-                            // 2. Llamada API
                             $apiKey = env('GEMINI_API_KEY');
                             
                             $prompt = "
-                                Escribe un artículo de blog de 800 palabras.
-                                Título: {$record->title}
-                                Enfoque: SEO Local para {$ciudad}. 
-                                Contexto: {$contexto}.
-                                Formato: HTML estricto (h2, h3, p, ul).
-                                Tono: Profesional y persuasivo.
+                                ACTÚA COMO: Redactor SEO Senior.
+                                TAREA: Escribir artículo de blog de 800-1000 palabras.
+                                TÍTULO: {$record->title}
+                                CIUDAD OBJETIVO: {$ciudad}.
+                                CONTEXTO NEGOCIO: {$contexto}.
+                                FORMATO: HTML limpio (h2, h3, p, ul).
+                                TONO: Persuasivo, experto y optimizado para conversión.
                             ";
 
                             $response = Http::withHeaders(['Content-Type' => 'application/json'])
@@ -107,27 +108,30 @@ class ArticlesRelationManager extends RelationManager
                                     'contents' => [['parts' => [['text' => $prompt]]]],
                                 ]);
 
-                            $json = $response->json();
-                            $texto = $json['candidates'][0]['content']['parts'][0]['text'] ?? null;
+                            $texto = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? null;
+                            if (!$texto) throw new \Exception("Sin respuesta de IA");
 
-                            if (!$texto) throw new \Exception("La IA no respondió.");
-
-                            // 3. Guardar
                             $record->update([
                                 'content' => str_replace(['```html', '```'], '', $texto),
                                 'status' => 'generated'
                             ]);
 
-                            Notification::make()->title('¡Artículo Redactado!')->success()->send();
+                            Notification::make()->title('Contenido Generado')->success()->send();
 
                         } catch (\Exception $e) {
                             Notification::make()->title('Error')->body($e->getMessage())->danger()->send();
                         }
                     }),
-                // --------------------------------
                 
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
+            ])
+            // --- AQUÍ ESTÁ LA ACCIÓN EN LOTE (BULK ACTIONS) ---
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make()
+                        ->label('Borrar Seleccionados'),
+                ]),
             ]);
     }
 }
