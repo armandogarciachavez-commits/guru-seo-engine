@@ -12,11 +12,22 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('articles', function (Blueprint $table) {
-            // Campos para la automatización
-            $table->string('status')->default('pending'); // pending, generated, published
-            $table->date('scheduled_date')->nullable();
-            $table->string('keyword')->nullable(); // La palabra clave objetivo
-            $table->string('intention')->nullable(); // Informativa / Comercial
+            // Solo crea la columna si NO existe
+            if (!Schema::hasColumn('articles', 'status')) {
+                $table->string('status')->default('pending');
+            }
+            
+            if (!Schema::hasColumn('articles', 'scheduled_date')) {
+                $table->date('scheduled_date')->nullable();
+            }
+
+            if (!Schema::hasColumn('articles', 'keyword')) {
+                $table->string('keyword')->nullable();
+            }
+
+            if (!Schema::hasColumn('articles', 'intention')) {
+                $table->string('intention')->nullable();
+            }
         });
     }
 
