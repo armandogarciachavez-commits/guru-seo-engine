@@ -5,8 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Auth; // <--- 1. NUEVO: Importamos Auth para saber quién eres
+use Illuminate\Support\Facades\Auth;
 
 class Project extends Model
 {
@@ -16,9 +17,10 @@ class Project extends Model
         'user_id',
         'name',
         'domain_url',
-        'target_city',      // <--- O lo que tengas aquí
+        'target_city',
         'brand_voice',
-        'seo_strategy',     // <--- ¡AGREGA ESTA LÍNEA!
+        'seo_strategy',
+        'uuid', // <--- ¡CRÍTICO! SIN ESTO NO SE GUARDA EL CÓDIGO API
     ];
 
     /**
@@ -34,19 +36,28 @@ class Project extends Model
                 $project->uuid = (string) Str::uuid();
             }
 
-            // B. Asignar el Usuario Actual automáticamente
-            if (empty($project->user_id)) {
+            // B. Asignar el Usuario Actual automáticamente (si no se envió)
+            if (empty($project->user_id) && Auth::check()) {
                 $project->user_id = Auth::id(); 
             }
         });
     }
 
+    // --- RELACIONES ---
+
     public function articles(): HasMany
     {
         return $this->hasMany(Article::class);
     }
-	public function crawlResults()
+
+    public function crawlResults(): HasMany
     {
         return $this->hasMany(CrawlResult::class);
+    }
+
+    // Faltaba esta para saber quién es el dueño
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 }
