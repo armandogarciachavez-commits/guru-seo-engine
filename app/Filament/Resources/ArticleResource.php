@@ -70,50 +70,68 @@ class ArticleResource extends Resource
                     }),
             ])
             ->actions([
-                // 1. EL BOTÓN MÁGICO (Primero para que se vea)
+                // 1. EL BOTÓN MÁGICO
                 Tables\Actions\Action::make('write_article')
                     ->label('Redactar con IA')
                     ->icon('heroicon-o-sparkles')
                     ->color('primary')
                     ->requiresConfirmation()
                     ->modalHeading('Redactar Artículo Completo')
-                    ->modalDescription('La IA escribirá ~1000 palabras optimizadas. Usará la URL real del proyecto.')
+                    ->modalDescription('La IA usará los datos de contacto reales del proyecto para cerrar el artículo.')
                     ->action(function (Article $record) {
                         // TIEMPO EXTRA
                         set_time_limit(120); 
                         
-                        // DATOS
+                        // --- 1. OBTENER DATOS DEL PROYECTO ---
                         $project = $record->project;
+                        
+                        // Datos básicos
                         $contexto = $project->seo_strategy ?? 'Negocio local profesional.';
                         $ciudad = $project->target_city ?? 'Local';
-                        
-                        // --- AQUÍ ESTÁ LA CORRECCIÓN ---
-                        // Obtenemos la URL real de la base de datos
                         $projectUrl = $project->domain_url; 
+
+                        // Datos de contacto (con valores por defecto si están vacíos)
+                        $phone = $project->phone ?? 'No especificado';
+                        $email = $project->email ?? 'No especificado';
+                        $address = $project->address ?? 'No especificado';
 
                         try {
                             $apiKey = env('GEMINI_API_KEY');
                             
+                            // --- 2. EL PROMPT MAESTRO ---
                             $prompt = "
-                                ROL: Redactor SEO Senior.
-                                TAREA: Escribir artículo completo de blog.
-                                DATOS: 
+                                ROL: Redactor SEO Senior experto en marketing local.
+                                TAREA: Escribir un artículo de blog atractivo y persuasivo.
+                                
+                                DATOS DEL ARTÍCULO: 
                                 - Título: '{$record->title}'
                                 - Keyword: '{$record->keyword}'
-                                - Ciudad: '{$ciudad}'
-                                - URL REAL DEL NEGOCIO: '{$projectUrl}'
+                                - Ciudad Objetivo: '{$ciudad}'
                                 
-                                CONTEXTO MARCA: 
+                                DATOS DE CONTACTO REALES (USAR AL FINAL):
+                                - Nombre del Negocio: '{$project->name}'
+                                - Sitio Web: '{$projectUrl}'
+                                - Teléfono/WhatsApp: '{$phone}'
+                                - Email: '{$email}'
+                                - Dirección: '{$address}'
+                                
+                                CONTEXTO DE MARCA: 
                                 {$contexto}
                                 
-                                REGLAS OBLIGATORIAS: 
+                                REGLAS OBLIGATORIAS DE REDACCIÓN: 
                                 1. Longitud: 800 a 1000 palabras.
                                 2. Formato: HTML puro (<h2>, <h3>, <p>, <ul>). NO uses Markdown.
-                                3. Estilo: Párrafos cortos, fácil de leer.
-                                4. Cierre: Call to Action (CTA) invitando a contactar.
-                                5. ENLACES: Si incluyes enlaces al sitio web, USA EXCLUSIVAMENTE: '{$projectUrl}'. PROHIBIDO inventar dominios como .com o .mx si no son el indicado aquí.
+                                3. Estilo: Párrafos cortos, lectura fácil, tono profesional pero cercano.
+                                4. ENLACES: Si incluyes enlaces internos, usa EXCLUSIVAMENTE la base: '{$projectUrl}'. PROHIBIDO inventar otros dominios.
                                 
-                                SALIDA: Solo el código HTML.
+                                5. CIERRE OBLIGATORIO (CALL TO ACTION):
+                                   Debes terminar el artículo con una sección h2 llamada 'Visítanos' o 'Contáctanos'.
+                                   En esta sección, invita al cliente a actuar.
+                                   INCLUYE EXPLÍCITAMENTE los datos de contacto provistos arriba (Teléfono, Dirección, Email) si son diferentes a 'No especificado'.
+                                   Si el dato es 'No especificado', no lo menciones.
+                                   Asegúrate de poner el enlace al sitio web.
+                                
+                                SALIDA: Solo el código HTML del artículo.
                             ";
 
                             $response = Http::withHeaders(['Content-Type' => 'application/json'])
@@ -134,7 +152,7 @@ class ArticleResource extends Resource
                                 'status' => 'generated'
                             ]);
 
-                            Notification::make()->title('¡Artículo Creado!')->body('Revisa el contenido en Editar.')->success()->send();
+                            Notification::make()->title('¡Artículo Creado!')->body('Se incluyeron los datos de contacto correctos.')->success()->send();
 
                         } catch (\Exception $e) {
                             Notification::make()->title('Error')->body($e->getMessage())->danger()->send();
