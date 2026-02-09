@@ -15,9 +15,7 @@ class ArticlesRelationManager extends RelationManager
 {
     protected static string $relationship = 'articles';
 
-    // Título en mayúsculas para confirmar visualmente el cambio
-    protected static ?string $title = 'ARTÍCULOS SEO (VERSIÓN FINAL)';
-    
+    protected static ?string $title = 'Artículos Generados'; // Título profesional restaurado
     protected static ?string $icon = 'heroicon-m-document-text';
 
     public function form(Form $form): Form
@@ -34,7 +32,7 @@ class ArticlesRelationManager extends RelationManager
                         Forms\Components\TextInput::make('keyword')
                             ->label('Palabra Clave'),
                         Forms\Components\DatePicker::make('scheduled_date')
-                            ->label('Fecha'),
+                            ->label('Fecha Programada'),
                     ]),
 
                 Forms\Components\RichEditor::make('content')
@@ -48,33 +46,42 @@ class ArticlesRelationManager extends RelationManager
         return $table
             ->recordTitleAttribute('title')
             ->columns([
-                Tables\Columns\TextColumn::make('scheduled_date')
-                    ->label('Fecha')
-                    ->date()
-                    ->sortable(),
+                // 1. TÍTULO (Primero, como debe ser)
                 Tables\Columns\TextColumn::make('title')
                     ->label('Título')
-                    ->limit(30)
-                    ->searchable(),
+                    ->limit(50)
+                    ->searchable()
+                    ->weight('bold'), // Negrita para que destaque
+
+                // 2. ESTADO (Con colores bonitos)
                 Tables\Columns\TextColumn::make('status')
+                    ->label('Estado')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
-                        'pending' => 'gray',
-                        'generated' => 'warning',
-                        'published' => 'success',
+                        'pending' => 'gray',     // Pendiente
+                        'generated' => 'warning', // Redactado (Amarillo)
+                        'published' => 'success', // Publicado (Verde)
                         default => 'gray',
                     }),
+
+                // 3. FECHA (Al final)
+                Tables\Columns\TextColumn::make('scheduled_date')
+                    ->label('Fecha')
+                    ->date('d/m/Y') // Formato día/mes/año
+                    ->sortable(),
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make(),
+                Tables\Actions\CreateAction::make()->label('Crear Manualmente'),
             ])
             ->actions([
-                // --- BOTÓN IA (Lógica Simplificada para evitar errores de sintaxis) ---
+                // --- BOTÓN IA QUE YA FUNCIONA ---
                 Tables\Actions\Action::make('write_article_ai')
-                    ->label('Redactar con IA')
+                    ->label('Redactar IA')
                     ->icon('heroicon-o-sparkles')
-                    ->color('info')
+                    ->color('info') // Azulito
                     ->requiresConfirmation()
+                    ->modalHeading('¿Redactar este artículo?')
+                    ->modalDescription('La IA generará el contenido basándose en el título y la ciudad del proyecto.')
                     ->action(function (Article $record, $livewire) {
                         // 1. Obtener datos
                         $project = $livewire->getOwnerRecord();
@@ -84,23 +91,26 @@ class ArticlesRelationManager extends RelationManager
                         try {
                             // 2. Llamada API
                             $apiKey = env('GEMINI_API_KEY');
-                            if (!$apiKey) throw new \Exception("Falta la API Key en .env");
+                            
+                            $prompt = "
+                                Escribe un artículo de blog de 800 palabras.
+                                Título: {$record->title}
+                                Enfoque: SEO Local para {$ciudad}. 
+                                Contexto: {$contexto}.
+                                Formato: HTML estricto (h2, h3, p, ul).
+                                Tono: Profesional y persuasivo.
+                            ";
 
                             $response = Http::withHeaders(['Content-Type' => 'application/json'])
                                 ->timeout(60)
                                 ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . $apiKey, [
-                                    'contents' => [['parts' => [['text' => 
-                                        "Escribe un artículo de blog de 800 palabras sobre: {$record->title}. 
-                                        Enfoque: SEO Local para {$ciudad}. 
-                                        Contexto: {$contexto}.
-                                        Formato: HTML (h2, h3, p, ul). Sin markdown."
-                                    ]]]],
+                                    'contents' => [['parts' => [['text' => $prompt]]]],
                                 ]);
 
                             $json = $response->json();
                             $texto = $json['candidates'][0]['content']['parts'][0]['text'] ?? null;
 
-                            if (!$texto) throw new \Exception("La IA no respondió nada.");
+                            if (!$texto) throw new \Exception("La IA no respondió.");
 
                             // 3. Guardar
                             $record->update([
@@ -108,12 +118,13 @@ class ArticlesRelationManager extends RelationManager
                                 'status' => 'generated'
                             ]);
 
-                            Notification::make()->title('Éxito')->body('Artículo redactado')->success()->send();
+                            Notification::make()->title('¡Artículo Redactado!')->success()->send();
 
                         } catch (\Exception $e) {
                             Notification::make()->title('Error')->body($e->getMessage())->danger()->send();
                         }
                     }),
+                // --------------------------------
                 
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
