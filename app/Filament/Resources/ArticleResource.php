@@ -41,7 +41,7 @@ class ArticleResource extends Resource
                         Forms\Components\DatePicker::make('scheduled_date')
                             ->label('Fecha Programada'),
                     ]),
-                // EDITOR DE TEXTO ENRIQUECIDO PARA VER EL RESULTADO
+                // EDITOR DE TEXTO ENRIQUECIDO
                 Forms\Components\RichEditor::make('content')
                     ->label('Contenido del Artículo')
                     ->columnSpanFull(),
@@ -70,22 +70,22 @@ class ArticleResource extends Resource
                     }),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                
-                // --- BOTÓN REDACTOR IA ---
+                // 1. EL BOTÓN MÁGICO (Primero para que se vea)
                 Tables\Actions\Action::make('write_article')
                     ->label('Redactar con IA')
                     ->icon('heroicon-o-sparkles')
-                    ->color('primary')
+                    ->color('primary') // Color Azul/Dorado según tema
                     ->requiresConfirmation()
                     ->modalHeading('Redactar Artículo Completo')
-                    ->modalDescription('La IA escribirá ~1000 palabras optimizadas. Esto tomará unos 30-60 segundos.')
+                    ->modalDescription('La IA escribirá ~1000 palabras optimizadas para este título. Tardará unos 30-40 segundos.')
                     ->action(function (Article $record) {
+                        // TIEMPO EXTRA
                         set_time_limit(120); 
                         
+                        // DATOS
                         $project = $record->project;
-                        // Usamos fallback por si la estrategia no está cargada
-                        $contexto = $project->seo_strategy ?? 'Empresa local profesional. Objetivo: Vender servicios.';
+                        // Usamos fallback por seguridad
+                        $contexto = $project->seo_strategy ?? 'Negocio local profesional.';
                         $ciudad = $project->target_city ?? 'Local';
 
                         try {
@@ -93,14 +93,22 @@ class ArticleResource extends Resource
                             
                             $prompt = "
                                 ROL: Redactor SEO Senior.
-                                TAREA: Escribir artículo completo para blog.
-                                DATOS: Título: '{$record->title}', Keyword: '{$record->keyword}', Ciudad: '{$ciudad}'.
-                                CONTEXTO MARCA: {$contexto}
-                                REGLAS: 
-                                1. Longitud 800-1000 palabras.
-                                2. Usa HTML (h2, h3, p, ul).
-                                3. Tono persuasivo y local.
-                                SALIDA: Solo código HTML limpio.
+                                TAREA: Escribir artículo completo de blog.
+                                DATOS: 
+                                - Título: '{$record->title}'
+                                - Keyword: '{$record->keyword}'
+                                - Ciudad: '{$ciudad}'
+                                
+                                CONTEXTO MARCA: 
+                                {$contexto}
+                                
+                                REGLAS OBLIGATORIAS: 
+                                1. Longitud: 800 a 1000 palabras.
+                                2. Formato: HTML puro (<h2>, <h3>, <p>, <ul>). NO uses Markdown.
+                                3. Estilo: Párrafos cortos, fácil de leer.
+                                4. Cierre: Call to Action (CTA) invitando a contactar.
+                                
+                                SALIDA: Solo el código HTML.
                             ";
 
                             $response = Http::withHeaders(['Content-Type' => 'application/json'])
@@ -112,7 +120,7 @@ class ArticleResource extends Resource
 
                             $content = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? null;
 
-                            if (!$content) throw new \Exception("IA vacía.");
+                            if (!$content) throw new \Exception("La IA no devolvió texto.");
 
                             $content = str_replace(['```html', '```'], '', $content);
 
@@ -121,12 +129,16 @@ class ArticleResource extends Resource
                                 'status' => 'generated'
                             ]);
 
-                            Notification::make()->title('¡Artículo Redactado!')->success()->send();
+                            Notification::make()->title('¡Artículo Creado!')->body('Revisa el contenido en Editar.')->success()->send();
 
                         } catch (\Exception $e) {
                             Notification::make()->title('Error')->body($e->getMessage())->danger()->send();
                         }
                     }),
+
+                // 2. BOTONES ESTÁNDAR
+                Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\DeleteBulkAction::make(),
