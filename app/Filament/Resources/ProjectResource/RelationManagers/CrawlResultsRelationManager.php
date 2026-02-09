@@ -8,7 +8,7 @@ use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log; // <--- Nuevo: Para ver errores en consola
+use Illuminate\Support\Facades\Log;
 use App\Models\CrawlResult;
 use App\Models\Article;
 use Illuminate\Support\HtmlString;
@@ -47,36 +47,32 @@ class CrawlResultsRelationManager extends RelationManager
             ])
             ->headerActions([
                 
-                // --- BOTÓN 1: GENERAR (Lógica movida a action() para estabilidad) ---
+                // --- BOTÓN 1: GENERAR ESTRATEGIA (ROJO) ---
                 Tables\Actions\Action::make('analyze_save_strategy')
                     ->label('1. Crear Radiografía Maestra')
                     ->icon('heroicon-o-document-magnifying-glass')
                     ->color('danger')
                     ->modalHeading('Generar Estrategia con IA')
-                    ->modalDescription('Esto puede tardar hasta 60 segundos. Por favor espera a la notificación verde.')
+                    ->modalDescription('Analizando el sitio... Espera la notificación verde.')
                     ->modalWidth('lg')
                     ->form([
                         Forms\Components\Textarea::make('competitors')
                             ->label('Competidores (Opcional)')
-                            ->placeholder('Ej: competencia1.com, elgigante.mx')
+                            ->placeholder('Ej: competencia1.com')
                             ->rows(2),
                     ])
                     ->action(function ($data, $livewire) {
-                        // 1. AUMENTAR TIEMPO DE ESPERA
                         set_time_limit(300);
                         ini_set('max_execution_time', 300);
                         
-                        Log::info('Inicio de generación de estrategia SEO...'); // Log para depurar
-
                         $project = $livewire->getOwnerRecord();
                         $results = $project->crawlResults;
 
                         if ($results->isEmpty()) {
-                            Notification::make()->title('Error: Sin datos')->body('Primero rastrea el sitio.')->danger()->send();
+                            Notification::make()->title('Error')->body('Sin datos de rastreo.')->danger()->send();
                             return;
                         }
 
-                        // 2. PREPARAR DATOS (Max 30 URLs para velocidad)
                         $siteMapData = $results->where('status_code', 200)->take(30)->map(fn($r) => "URL: {$r->url} | H1: {$r->h1} | Title: {$r->title}")->implode("\n");
                         $ciudad = $project->target_city ?? 'Local';
                         $competidores = $data['competitors'] ?? 'N/A';
@@ -90,25 +86,18 @@ class CrawlResultsRelationManager extends RelationManager
                                 COMPETENCIA: {$competidores}.
                                 DATOS: {$siteMapData}
 
-                                ESTRUCTURA HTML (Usa Tailwind classes):
+                                ESTRUCTURA HTML (Usa Tailwind):
                                 <div class='space-y-4'>
                                     <h2 class='text-xl font-bold text-blue-600'>1. Diagnóstico de Identidad</h2>
                                     <p>...</p>
-                                    
                                     <h2 class='text-xl font-bold text-blue-600'>2. Análisis de Brechas</h2>
                                     <p>...</p>
-
                                     <h2 class='text-xl font-bold text-blue-600'>3. Oportunidades de Keywords</h2>
                                     <ul class='list-disc pl-5'>...</ul>
-
                                     <h2 class='text-xl font-bold text-blue-600'>4. Pilares de Contenido</h2>
                                     <ul class='list-disc pl-5'>...</ul>
                                 </div>
-                                
-                                IMPORTANTE: Sé estratégico.
                             ";
-
-                            Log::info('Enviando petición a Gemini...');
 
                             $response = Http::withHeaders(['Content-Type' => 'application/json'])
                                 ->timeout(120)
@@ -119,32 +108,25 @@ class CrawlResultsRelationManager extends RelationManager
 
                             $aiReport = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? null;
 
-                            if (!$aiReport) {
-                                throw new \Exception("La IA respondió vacío.");
-                            }
+                            if (!$aiReport) throw new \Exception("IA respondió vacío.");
 
                             $aiReport = str_replace(['```html', '```'], '', $aiReport);
 
-                            // 3. GUARDAR EN BASE DE DATOS
                             $project->update(['seo_strategy' => $aiReport]);
-                            
-                            Log::info('Estrategia guardada correctamente.');
 
-                            // 4. NOTIFICAR ÉXITO
                             Notification::make()
                                 ->title('¡Estrategia Guardada!')
-                                ->body('Ahora puedes usar el botón GRIS para verla o el VERDE para programar.')
+                                ->body('Ahora usa el botón GRIS para verla.')
                                 ->success()
-                                ->persistent() // Se queda en pantalla hasta que lo cierras
+                                ->persistent()
                                 ->send();
 
                         } catch (\Exception $e) {
-                            Log::error('Error en estrategia SEO: ' . $e->getMessage());
                             Notification::make()->title('Error')->body($e->getMessage())->danger()->send();
                         }
                     }),
 
-                // --- BOTÓN 2: VER (Siempre visible) ---
+                // --- BOTÓN 2: VER ESTRATEGIA (GRIS - REPARADO CON FRESH()) ---
                 Tables\Actions\Action::make('view_strategy')
                     ->label('Ver Radiografía Guardada')
                     ->icon('heroicon-o-eye')
@@ -152,20 +134,25 @@ class CrawlResultsRelationManager extends RelationManager
                     ->modalHeading('Estrategia Actual Guardada')
                     ->modalWidth('7xl')
                     ->action(function ($livewire) {
-                        // Acción vacía para que no se queje Filament, lo importante es el modalContent
-                        if (empty($livewire->getOwnerRecord()->seo_strategy)) {
+                        // Forzamos la recarga del modelo desde la BD
+                        $project = $livewire->getOwnerRecord()->fresh(); 
+                        
+                        if (empty($project->seo_strategy)) {
                              Notification::make()->title('Vacío')->body('Primero genera la estrategia con el botón Rojo.')->warning()->send();
                         }
                     })
                     ->modalContent(function ($livewire) {
-                        $strategy = $livewire->getOwnerRecord()->seo_strategy;
+                        // ¡AQUÍ ESTÁ EL TRUCO! USAMOS ->fresh()
+                        $project = $livewire->getOwnerRecord()->fresh();
+                        $strategy = $project->seo_strategy;
+
                         if (empty($strategy)) {
                             return new HtmlString('<div class="text-center p-4 text-gray-500">⚠️ No hay estrategia guardada. Ejecuta el botón Rojo primero.</div>');
                         }
                         return new HtmlString("<div class='prose dark:prose-invert max-w-none'>{$strategy}</div>");
                     }),
 
-                // --- BOTÓN 3: PROGRAMAR (Usa lo guardado) ---
+                // --- BOTÓN 3: PROGRAMAR (VERDE - REPARADO CON FRESH()) ---
                 Tables\Actions\Action::make('generate_calendar_db')
                     ->label('2. Programar Artículos (Auto)')
                     ->icon('heroicon-o-calendar-days')
@@ -191,7 +178,8 @@ class CrawlResultsRelationManager extends RelationManager
                         set_time_limit(300);
                         ini_set('max_execution_time', 300);
 
-                        $project = $livewire->getOwnerRecord();
+                        // ¡AQUÍ TAMBIÉN! USAMOS ->fresh()
+                        $project = $livewire->getOwnerRecord()->fresh();
                         
                         if (empty($project->seo_strategy)) {
                             Notification::make()->title('Error')->body('Primero genera la radiografía (Botón Rojo).')->danger()->send();
@@ -206,10 +194,10 @@ class CrawlResultsRelationManager extends RelationManager
                             $apiKey = env('GEMINI_API_KEY');
                             
                             $prompt = "
-                                ACTÚA COMO: API JSON de Planificación de Contenidos.
+                                ACTÚA COMO: API JSON.
                                 CONTEXTO: {$project->seo_strategy}
-                                TAREA: Genera un JSON array con {$postsA_Generar} ideas.
-                                FORMATO JSON: [{\"title\": \"...\", \"keyword\": \"...\", \"intention\": \"...\"}]
+                                TAREA: Genera JSON array con {$postsA_Generar} ideas.
+                                FORMATO: [{\"title\": \"...\", \"keyword\": \"...\", \"intention\": \"...\"}]
                                 SIN MARKDOWN.
                             ";
 
@@ -225,7 +213,7 @@ class CrawlResultsRelationManager extends RelationManager
                             
                             $plan = json_decode($jsonText, true);
 
-                            if (!is_array($plan)) throw new \Exception("Formato inválido de IA");
+                            if (!is_array($plan)) throw new \Exception("Error formato IA");
 
                             $currentDate = $fechaInicio->copy();
                             $count = 0;
