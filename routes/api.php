@@ -2,12 +2,11 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-// IMPORTANTE: Traemos el controlador que sí existe
-use App\Http\Controllers\Api\ContentController; 
+use App\Http\Controllers\Api\ContentController; // <--- ESTO ES VITAL
 
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-// --- ESTA ES LA RUTA QUE FALTABA ---
+// La ruta mágica para tu Widget
 Route::get('/v1/widget/{uuid}', [ContentController::class, 'getArticles']);
