@@ -1,0 +1,37 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::table('projects', function (Blueprint $table) {
+            // Agregamos las columnas si no existen
+            if (!Schema::hasColumn('projects', 'phone')) {
+                $table->string('phone')->nullable()->after('brand_voice');
+            }
+            if (!Schema::hasColumn('projects', 'email')) {
+                $table->string('email')->nullable()->after('phone');
+            }
+            if (!Schema::hasColumn('projects', 'address')) {
+                $table->text('address')->nullable()->after('email');
+            }
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::table('projects', function (Blueprint $table) {
+            $table->dropColumn(['phone', 'email', 'address']);
+        });
+    }
+};
