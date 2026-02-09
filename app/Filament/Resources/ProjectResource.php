@@ -29,12 +29,22 @@ class ProjectResource extends Resource
         return $form
             ->schema([
                 Forms\Components\Section::make('Detalles del Proyecto')
-                    ->description('Configuraci�n principal.')
+                    ->description('Configuración principal.')
                     ->schema([
                         Forms\Components\TextInput::make('name')
                             ->required()
                             ->maxLength(255)
                             ->label('Nombre del Proyecto'),
+
+                        // --- NUEVO CAMPO UUID (API KEY) ---
+                        Forms\Components\TextInput::make('uuid')
+                            ->label('API Key (UUID)')
+                            ->helperText('Copia este código para conectar tu sitio web o widget.')
+                            ->disabled() // No editable
+                            ->dehydrated(false) // No enviar a guardar (ya está en BD)
+                            ->visible(fn ($record) => $record !== null) // Solo visible al editar
+                            ->columnSpanFull(), // Ocupa todo el ancho
+                        // ----------------------------------
                         
                         Forms\Components\TextInput::make('domain_url')
                             ->url()
@@ -46,7 +56,7 @@ class ProjectResource extends Resource
                         Forms\Components\Select::make('cms_type')
                             ->options([
                                 'wordpress' => 'WordPress',
-                                'static' => 'Sitio Est�tico / HTML',
+                                'static' => 'Sitio Estático / HTML',
                                 'custom_html' => 'Custom HTML',
                             ])
                             ->required()
@@ -63,7 +73,7 @@ class ProjectResource extends Resource
                             ->label('Frecuencia'),
                     ])->columns(2),
 
-                Forms\Components\Section::make('Configuraci�n de Contenido')
+                Forms\Components\Section::make('Configuración de Contenido')
                     ->schema([
                         Forms\Components\TextInput::make('target_language')
                             ->label('Idioma Objetivo')
@@ -115,9 +125,9 @@ class ProjectResource extends Resource
                     ->icon('heroicon-o-eye')
                     ->color('warning')
                     ->requiresConfirmation()
-                    ->modalHeading('�Iniciar Auditor�a T�cnica?')
-                    ->modalDescription('El sistema analizar� la estructura del sitio. Esto puede tardar varios minutos.')
-                    ->modalSubmitActionLabel('S�, Iniciar Rastreo')
+                    ->modalHeading('¿Iniciar Auditoría Técnica?')
+                    ->modalDescription('El sistema analizará la estructura del sitio. Esto puede tardar varios minutos.')
+                    ->modalSubmitActionLabel('Sí, Iniciar Rastreo')
                     ->action(function (Project $record) {
                         set_time_limit(600);
                         ini_set('max_execution_time', 600);
@@ -138,13 +148,11 @@ class ProjectResource extends Resource
 
                             Notification::make()
                                 ->title('Rastreo Completado')
-                                ->body('Se han analizado las p�ginas del sitio.')
+                                ->body('Se han analizado las páginas del sitio.')
                                 ->success()
                                 ->send();
 
                         } catch (\Exception $e) {
-                            // --- LIMPIEZA DE ERROR CR�TICA ---
-                            // Esto evita que un mensaje de error con basura rompa Livewire
                             $cleanMessage = mb_convert_encoding($e->getMessage(), 'UTF-8', 'UTF-8');
                             
                             Notification::make()
