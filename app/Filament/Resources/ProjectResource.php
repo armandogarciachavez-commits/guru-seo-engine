@@ -92,6 +92,28 @@ class ProjectResource extends Resource
                             ->placeholder('Ej: Profesional, amigable, experto...')
                             ->columnSpanFull(),
                     ])->columns(2),
+
+                // --- AQUÍ ESTÁ LA NUEVA SECCIÓN DE CONTACTO ---
+                Forms\Components\Section::make('Datos de Contacto (Para la IA)')
+                    ->description('Estos datos aparecerán automáticamente al final de los artículos.')
+                    ->schema([
+                        Forms\Components\TextInput::make('phone')
+                            ->label('Teléfono / WhatsApp')
+                            ->tel()
+                            ->placeholder('+52 314 ...'),
+
+                        Forms\Components\TextInput::make('email')
+                            ->label('Correo de Contacto')
+                            ->email()
+                            ->placeholder('contacto@negocio.com'),
+
+                        Forms\Components\Textarea::make('address')
+                            ->label('Dirección Física')
+                            ->rows(2)
+                            ->columnSpanFull()
+                            ->placeholder('Calle, Número, Colonia, Ciudad...'),
+                    ])->columns(2),
+                // ----------------------------------------------
             ]);
     }
 
