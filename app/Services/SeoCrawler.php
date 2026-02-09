@@ -20,20 +20,25 @@ class SeoCrawler extends CrawlObserver
     }
 
     /**
-     * Limpieza NUCLEAR de texto
+     * Limpia el texto y lo recorta si es necesario para que no explote la BD.
      */
-    private function cleanText(?string $text): ?string
+    private function cleanText(?string $text, int $limit = 250): ?string
     {
         if ($text === null) return null;
 
-        // 1. Convertir a UTF-8 ignorando caracteres ilegales
-        // 'IGNORE' descarta lo que no puede leer
+        // 1. Limpieza de codificación (UTF-8)
         $text = iconv(mb_detect_encoding($text, mb_detect_order(), true) ?: 'UTF-8', 'UTF-8//IGNORE', $text);
-
-        // 2. Eliminar caracteres de control invisibles (excepto saltos de línea)
         $text = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', '', $text);
+        $text = trim($text);
 
-        return trim($text);
+        // 2. RECORTAR CON AVISO (Para proteger tu App)
+        // Si el texto es más largo que lo que soporta la BD (255 chars), lo cortamos.
+        if (mb_strlen($text) > $limit) {
+            // Cortamos y agregamos una marca visual para que sepas que hay un problema SEO
+            return mb_substr($text, 0, $limit - 15) . '... [EXCESO]';
+        }
+
+        return $text;
     }
 
     public function crawled(
@@ -48,8 +53,6 @@ class SeoCrawler extends CrawlObserver
         }
 
         $html = (string) $response->getBody();
-        
-        // Limpiar HTML antes de cargarlo
         $html = mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8');
         
         libxml_use_internal_errors(true); 
@@ -69,13 +72,18 @@ class SeoCrawler extends CrawlObserver
 
         $title = $dom->getElementsByTagName('title')->item(0)?->nodeValue;
 
+        // AQUÍ ESTÁ LA PROTECCIÓN
+        // Usamos cleanText con límite de 250 caracteres.
+        // Si el sitio tiene un título de 500 letras, se guardarán las primeras 235 + "... [EXCESO]"
+        // Así tu app no falla, y tú sabes que tienes que arreglar ese sitio.
+        
         CrawlResult::create([
             'project_id' => $this->project->id,
             'url' => (string) $url,
             'status_code' => $response->getStatusCode(),
-            'title' => $this->cleanText($title), 
-            'h1' => $this->cleanText($h1),       
-            'meta_description' => $this->cleanText($metaDescription), 
+            'title' => $this->cleanText($title, 250), 
+            'h1' => $this->cleanText($h1, 250),       
+            'meta_description' => $this->cleanText($metaDescription, 500), 
             'word_count' => str_word_count(strip_tags($html)),
         ]);
     }
@@ -86,14 +94,14 @@ class SeoCrawler extends CrawlObserver
         ?UriInterface $foundOnUrl = null,
         ?string $linkText = null 
     ): void {
-        $errorMsg = $this->cleanText($requestException->getMessage());
+        $errorMsg = $this->cleanText($requestException->getMessage(), 200);
 
         CrawlResult::create([
             'project_id' => $this->project->id,
             'url' => (string) $url,
             'status_code' => $requestException->getCode() ?: 500, 
             'title' => 'Error de Rastreo',
-            'h1' => 'Error: ' . substr($errorMsg, 0, 200),
+            'h1' => 'Error: ' . $errorMsg,
         ]);
     }
 }
