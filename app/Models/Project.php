@@ -13,14 +13,12 @@ class Project extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id', // <--- 2. NUEVO: ¡Importante! Permitimos llenar este campo
+        'user_id',
         'name',
         'domain_url',
-        'cms_type',
-        'target_language',
-        'target_city',
-        'posting_frequency',
+        'target_city',      // <--- O lo que tengas aquí
         'brand_voice',
+        'seo_strategy',     // <--- ¡AGREGA ESTA LÍNEA!
     ];
 
     /**
