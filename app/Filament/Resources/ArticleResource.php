@@ -74,19 +74,22 @@ class ArticleResource extends Resource
                 Tables\Actions\Action::make('write_article')
                     ->label('Redactar con IA')
                     ->icon('heroicon-o-sparkles')
-                    ->color('primary') // Color Azul/Dorado según tema
+                    ->color('primary')
                     ->requiresConfirmation()
                     ->modalHeading('Redactar Artículo Completo')
-                    ->modalDescription('La IA escribirá ~1000 palabras optimizadas para este título. Tardará unos 30-40 segundos.')
+                    ->modalDescription('La IA escribirá ~1000 palabras optimizadas. Usará la URL real del proyecto.')
                     ->action(function (Article $record) {
                         // TIEMPO EXTRA
                         set_time_limit(120); 
                         
                         // DATOS
                         $project = $record->project;
-                        // Usamos fallback por seguridad
                         $contexto = $project->seo_strategy ?? 'Negocio local profesional.';
                         $ciudad = $project->target_city ?? 'Local';
+                        
+                        // --- AQUÍ ESTÁ LA CORRECCIÓN ---
+                        // Obtenemos la URL real de la base de datos
+                        $projectUrl = $project->domain_url; 
 
                         try {
                             $apiKey = env('GEMINI_API_KEY');
@@ -98,6 +101,7 @@ class ArticleResource extends Resource
                                 - Título: '{$record->title}'
                                 - Keyword: '{$record->keyword}'
                                 - Ciudad: '{$ciudad}'
+                                - URL REAL DEL NEGOCIO: '{$projectUrl}'
                                 
                                 CONTEXTO MARCA: 
                                 {$contexto}
@@ -107,13 +111,14 @@ class ArticleResource extends Resource
                                 2. Formato: HTML puro (<h2>, <h3>, <p>, <ul>). NO uses Markdown.
                                 3. Estilo: Párrafos cortos, fácil de leer.
                                 4. Cierre: Call to Action (CTA) invitando a contactar.
+                                5. ENLACES: Si incluyes enlaces al sitio web, USA EXCLUSIVAMENTE: '{$projectUrl}'. PROHIBIDO inventar dominios como .com o .mx si no son el indicado aquí.
                                 
                                 SALIDA: Solo el código HTML.
                             ";
 
                             $response = Http::withHeaders(['Content-Type' => 'application/json'])
                                 ->timeout(120)
-                                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . $apiKey, [
+                                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" . $apiKey, [
                                     'contents' => [['parts' => [['text' => $prompt]]]],
                                     'generationConfig' => ['temperature' => 0.7]
                                 ]);
@@ -141,7 +146,9 @@ class ArticleResource extends Resource
                 Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
-                Tables\Actions\DeleteBulkAction::make(),
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
             ]);
     }
     
