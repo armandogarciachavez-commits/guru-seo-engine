@@ -2,147 +2,183 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Resources\ArticleResource\Pages;
-use App\Models\Article;
+use App\Services\SeoCrawler;
+use Spatie\Crawler\Crawler;
+use Spatie\Crawler\CrawlProfiles\CrawlInternalUrls;
+use App\Models\CrawlResult;
+use App\Filament\Resources\ProjectResource\Pages;
+use App\Filament\Resources\ProjectResource\RelationManagers;
+use App\Models\Project;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\Http;
 use Filament\Notifications\Notification;
 
-class ArticleResource extends Resource
+class ProjectResource extends Resource
 {
-    protected static ?string $model = Article::class;
+    protected static ?string $model = Project::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-document-text';
-    protected static ?string $navigationLabel = 'Artículos SEO';
+    protected static ?string $navigationIcon = 'heroicon-o-rocket-launch';
+    protected static ?string $navigationLabel = 'Mis Proyectos';
+    protected static ?string $modelLabel = 'Proyecto';
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                Forms\Components\TextInput::make('title')
-                    ->label('Título')
-                    ->required()
-                    ->columnSpanFull(),
-                Forms\Components\Grid::make(2)
+                Forms\Components\Section::make('Detalles del Proyecto')
+                    ->description('Configuraci�n principal.')
                     ->schema([
-                        Forms\Components\TextInput::make('keyword')
-                            ->label('Palabra Clave'),
-                        Forms\Components\Select::make('status')
+                        Forms\Components\TextInput::make('name')
+                            ->required()
+                            ->maxLength(255)
+                            ->label('Nombre del Proyecto'),
+                        
+                        Forms\Components\TextInput::make('domain_url')
+                            ->url()
+                            ->required()
+                            ->prefix('https://')
+                            ->maxLength(255)
+                            ->label('URL del Sitio'),
+
+                        Forms\Components\Select::make('cms_type')
                             ->options([
-                                'pending' => 'Pendiente',
-                                'generated' => 'Redactado',
-                                'published' => 'Publicado',
+                                'wordpress' => 'WordPress',
+                                'static' => 'Sitio Est�tico / HTML',
+                                'custom_html' => 'Custom HTML',
                             ])
-                            ->default('pending'),
-                        Forms\Components\DatePicker::make('scheduled_date')
-                            ->label('Fecha Programada'),
-                    ]),
-                // EDITOR DE TEXTO ENRIQUECIDO PARA VER EL RESULTADO
-                Forms\Components\RichEditor::make('content')
-                    ->label('Contenido del Artículo')
-                    ->columnSpanFull(),
+                            ->required()
+                            ->label('CMS'),
+                            
+                        Forms\Components\Select::make('posting_frequency')
+                            ->options([
+                                'daily' => 'Diario',
+                                'weekly' => 'Semanal',
+                                'monthly' => 'Mensual',
+                            ])
+                            ->default('weekly')
+                            ->required()
+                            ->label('Frecuencia'),
+                    ])->columns(2),
+
+                Forms\Components\Section::make('Configuraci�n de Contenido')
+                    ->schema([
+                        Forms\Components\TextInput::make('target_language')
+                            ->label('Idioma Objetivo')
+                            ->default('es-MX')
+                            ->required()
+                            ->maxLength(10),
+
+                        Forms\Components\TextInput::make('target_city')
+                            ->label('Ciudad Objetivo (Local SEO)')
+                            ->placeholder('Ej: Manzanillo, Colima')
+                            ->maxLength(255),
+
+                        Forms\Components\Textarea::make('brand_voice')
+                            ->label('Voz de Marca')
+                            ->rows(3)
+                            ->placeholder('Ej: Profesional, amigable, experto...')
+                            ->columnSpanFull(),
+                    ])->columns(2),
             ]);
     }
 
     public static function table(Table $table): Table
     {
         return $table
+            ->recordUrl(
+                fn (Project $record): string => Pages\EditProject::getUrl([$record->id]),
+            )
             ->columns([
-                Tables\Columns\TextColumn::make('scheduled_date')
-                    ->label('Fecha')
-                    ->date()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('title')
-                    ->label('Título')
-                    ->limit(40)
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('status')
+                Tables\Columns\TextColumn::make('name')
+                    ->searchable()
+                    ->sortable()
+                    ->weight('bold')
+                    ->label('Proyecto'),
+
+                Tables\Columns\TextColumn::make('domain_url')
+                    ->url(fn ($record) => $record->domain_url, true) 
+                    ->color('primary')
+                    ->icon('heroicon-m-link')
+                    ->label('Sitio Web'),
+
+                Tables\Columns\TextColumn::make('cms_type')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'pending' => 'gray',
-                        'generated' => 'warning',
-                        'published' => 'success',
-                        default => 'gray',
-                    }),
+                    ->color('info')
+                    ->label('CMS'),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                
-                // --- AQUÍ ESTÁ EL BOTÓN QUE BUSCAS ---
-                Tables\Actions\Action::make('write_article')
-                    ->label('Redactar con IA')
-                    ->icon('heroicon-o-sparkles')
-                    ->color('primary')
+                Tables\Actions\Action::make('audit_site')
+                    ->label('Rastrear Sitio')
+                    ->icon('heroicon-o-eye')
+                    ->color('warning')
                     ->requiresConfirmation()
-                    ->modalHeading('Redactar Artículo Completo')
-                    ->modalDescription('La IA escribirá ~1000 palabras optimizadas. Esto tomará unos 30 segundos.')
-                    ->action(function (Article $record) {
-                        // 1. Tiempo extra
-                        set_time_limit(120); 
-                        
-                        // 2. Contexto
-                        $project = $record->project;
-                        $contexto = $project->seo_strategy ?? 'Empresa local profesional.';
-                        $ciudad = $project->target_city ?? 'Local';
+                    ->modalHeading('�Iniciar Auditor�a T�cnica?')
+                    ->modalDescription('El sistema analizar� la estructura del sitio. Esto puede tardar varios minutos.')
+                    ->modalSubmitActionLabel('S�, Iniciar Rastreo')
+                    ->action(function (Project $record) {
+                        set_time_limit(600);
+                        ini_set('max_execution_time', 600);
+
+                        CrawlResult::where('project_id', $record->id)->delete();
+
+                        $url = $record->domain_url;
+                        if (!str_starts_with($url, 'http')) {
+                            $url = 'https://' . $url;
+                        }
 
                         try {
-                            $apiKey = env('GEMINI_API_KEY');
-                            
-                            // 3. Prompt
-                            $prompt = "
-                                ROL: Redactor SEO Senior.
-                                TAREA: Escribir artículo completo.
-                                DATOS: Título: '{$record->title}', Keyword: '{$record->keyword}', Ciudad: '{$ciudad}'.
-                                CONTEXTO: {$contexto}
-                                REGLAS: 800-1000 palabras. Estructura HTML (h2, h3, p, ul). Tono profesional.
-                                SALIDA: Solo HTML.
-                            ";
+                            Crawler::create()
+                                ->setCrawlObserver(new SeoCrawler($record))
+                                ->setCrawlProfile(new CrawlInternalUrls($url))
+                                ->setTotalCrawlLimit(50)
+                                ->startCrawling($url);
 
-                            $response = Http::withHeaders(['Content-Type' => 'application/json'])
-                                ->timeout(120)
-                                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . $apiKey, [
-                                    'contents' => [['parts' => [['text' => $prompt]]]],
-                                    'generationConfig' => ['temperature' => 0.7]
-                                ]);
-
-                            $content = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? null;
-
-                            if (!$content) throw new \Exception("IA vacía.");
-
-                            $content = str_replace(['```html', '```'], '', $content);
-
-                            $record->update([
-                                'content' => $content,
-                                'status' => 'generated'
-                            ]);
-
-                            Notification::make()->title('¡Artículo Redactado!')->success()->send();
+                            Notification::make()
+                                ->title('Rastreo Completado')
+                                ->body('Se han analizado las p�ginas del sitio.')
+                                ->success()
+                                ->send();
 
                         } catch (\Exception $e) {
-                            Notification::make()->title('Error')->body($e->getMessage())->danger()->send();
+                            // --- LIMPIEZA DE ERROR CR�TICA ---
+                            // Esto evita que un mensaje de error con basura rompa Livewire
+                            $cleanMessage = mb_convert_encoding($e->getMessage(), 'UTF-8', 'UTF-8');
+                            
+                            Notification::make()
+                                ->title('Error en Rastreo')
+                                ->body($cleanMessage)
+                                ->danger()
+                                ->send();
                         }
                     }),
+
+                Tables\Actions\EditAction::make()->button(),
+                Tables\Actions\DeleteAction::make()->button(),
             ])
             ->bulkActions([
-                Tables\Actions\DeleteBulkAction::make(),
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
             ]);
     }
 
     public static function getRelations(): array
     {
-        return [];
+        return [
+            RelationManagers\ArticlesRelationManager::class,
+            RelationManagers\CrawlResultsRelationManager::class,
+        ];
     }
 
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListArticles::route('/'),
-            'create' => Pages\CreateArticle::route('/create'),
-            'edit' => Pages\EditArticle::route('/{record}/edit'),
+            'index' => Pages\ListProjects::route('/'),
+            'create' => Pages\CreateProject::route('/create'),
+            'edit' => Pages\EditProject::route('/{record}/edit'),
         ];
     }
 }
