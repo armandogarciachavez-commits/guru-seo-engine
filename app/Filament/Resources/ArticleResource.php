@@ -169,8 +169,11 @@ IMPORTANTE: Devuelve SOLO el HTML final, sin explicaciones.
                                 ->timeout(120)
                                 ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" . $apiKey, [
                                     'contents' => [['parts' => [['text' => $prompt]]]],
-                                    'generationConfig' => ['temperature' => 0.7]
-                                ]);
+                                    ''generationConfig' => [
+  										'temperature' => 0.5,
+  										'topP' => 0.9,
+  										'maxOutputTokens' => 2048
+										]
 
                             $content = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? null;
 
