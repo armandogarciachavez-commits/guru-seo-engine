@@ -100,69 +100,69 @@ class ArticleResource extends Resource
                             
                             // --- 2. EL PROMPT MAESTRO ---
                            $prompt = "
-ROL: Redactor SEO Senior experto en marketing local y copywriting de conversión.
-OBJETIVO: Crear un artículo que ayude de verdad al lector, posicione en Google y convierta.
+						ROL: Redactor SEO Senior experto en marketing local y copywriting de conversión.
+						OBJETIVO: Crear un artículo que ayude de verdad al lector, posicione en Google y convierta.
 
-DATOS DEL ARTÍCULO:
-- Título: '{$record->title}'
-- Keyword principal: '{$record->keyword}'
-- Ciudad objetivo: '{$ciudad}'
+						DATOS DEL ARTÍCULO:
+						- Título: '{$record->title}'
+						- Keyword principal: '{$record->keyword}'
+						- Ciudad objetivo: '{$ciudad}'
 
-DATOS DE CONTACTO REALES (USAR AL FINAL):
-- Nombre del negocio: '{$project->name}'
-- Sitio web (URL base para enlaces internos): '{$projectUrl}'
-- Teléfono/WhatsApp: '{$phone}'
-- Email: '{$email}'
-- Dirección: '{$address}'
+						DATOS DE CONTACTO REALES (USAR AL FINAL):
+						- Nombre del negocio: '{$project->name}'
+						- Sitio web (URL base para enlaces internos): '{$projectUrl}'
+						- Teléfono/WhatsApp: '{$phone}'
+						- Email: '{$email}'
+						- Dirección: '{$address}'
 
-CONTEXTO DE MARCA (voz, servicios, ventajas, restricciones):
-{$contexto}
+						CONTEXTO DE MARCA (voz, servicios, ventajas, restricciones):
+						{$contexto}
 
-REGLAS OBLIGATORIAS:
-1) Longitud total: 850 a 1050 palabras (no menos de 850).
-2) SALIDA: SOLO HTML puro. Prohibido Markdown. Prohibido backticks. Usa solo: <h2>, <h3>, <p>, <ul>, <li>, <strong>, <a>.
-3) Estilo: párrafos cortos, lectura fácil, tono profesional y cercano. Español neutro.
-4) Intención de búsqueda: orienta el artículo a resolver dudas prácticas relacionadas con la keyword y la ciudad.
-5) Keyword:
-   - Debe aparecer en los primeros 100 caracteres.
-   - Densidad máxima: 1.5% (no repetirla de forma forzada).
-   - Usa variaciones y términos relacionados de forma natural (sin listas de keywords).
-6) Estructura obligatoria:
-   - 1 intro (sin h2)
-   - 4 a 6 secciones <h2>
-   - En al menos 2 secciones usa <h3> para subsecciones.
-   - Incluir 1 lista <ul> con pasos, checklist o recomendaciones accionables.
-   - Incluir una sección de FAQs con 4 preguntas y respuestas (en <h2> y <h3>).
-7) Contenido útil real:
-   - Evita relleno y generalidades. Cada sección debe aportar una idea práctica, ejemplo o recomendación.
-   - Prohibido usar frases vacías como: 'hoy en día', 'en el mundo actual', 'es importante mencionar', 'sin duda alguna'.
-   - No inventes datos específicos (años, premios, estadísticas, números exactos) si no están en el CONTEXTO DE MARCA.
-8) Enlaces internos:
-   - Si incluyes enlaces, deben usar ÚNICAMENTE la base '{$projectUrl}' (mismo dominio).
-   - Máximo 2 enlaces internos.
-   - Los enlaces deben ser útiles (no forzados) y con anchor text descriptivo.
-   - Ejemplo permitido: <a href='{$projectUrl}/servicios'>servicios</a>
-   - Prohibido inventar otros dominios.
+						REGLAS OBLIGATORIAS:
+						1) Longitud total: 850 a 1050 palabras (no menos de 850).
+						2) SALIDA: SOLO HTML puro. Prohibido Markdown. Prohibido backticks. Usa solo: <h2>, <h3>, <p>, <ul>, <li>, <strong>, <a>.
+						3) Estilo: párrafos cortos, lectura fácil, tono profesional y cercano. Español neutro.
+						4) Intención de búsqueda: orienta el artículo a resolver dudas prácticas relacionadas con la keyword y la ciudad.
+						5) Keyword:
+						   - Debe aparecer en los primeros 100 caracteres.
+						   - Densidad máxima: 1.5% (no repetirla de forma forzada).
+						   - Usa variaciones y términos relacionados de forma natural (sin listas de keywords).
+						6) Estructura obligatoria:
+						   - 1 intro (sin h2)
+						   - 4 a 6 secciones <h2>
+						   - En al menos 2 secciones usa <h3> para subsecciones.
+						   - Incluir 1 lista <ul> con pasos, checklist o recomendaciones accionables.
+						   - Incluir una sección de FAQs con 4 preguntas y respuestas (en <h2> y <h3>).
+						7) Contenido útil real:
+						   - Evita relleno y generalidades. Cada sección debe aportar una idea práctica, ejemplo o recomendación.
+						   - Prohibido usar frases vacías como: 'hoy en día', 'en el mundo actual', 'es importante mencionar', 'sin duda alguna'.
+						   - No inventes datos específicos (años, premios, estadísticas, números exactos) si no están en el CONTEXTO DE MARCA.
+						8) Enlaces internos:
+						   - Si incluyes enlaces, deben usar ÚNICAMENTE la base '{$projectUrl}' (mismo dominio).
+						   - Máximo 2 enlaces internos.
+						   - Los enlaces deben ser útiles (no forzados) y con anchor text descriptivo.
+						   - Ejemplo permitido: <a href='{$projectUrl}/servicios'>servicios</a>
+						   - Prohibido inventar otros dominios.
 
-SALIDA EN HTML (FORMATO EXACTO):
-A) Al inicio del HTML, agrega un bloque de comentarios con:
-   <!--
-   META_TITLE: (máx 60 caracteres, incluye keyword + ciudad)
-   META_DESCRIPTION: (150-160 caracteres, incluye keyword + ciudad, con beneficio claro)
-   SLUG: (minúsculas, sin acentos, con guiones, basado en keyword + ciudad)
-   -->
-B) Luego el contenido del artículo con la estructura solicitada.
+						SALIDA EN HTML (FORMATO EXACTO):
+						A) Al inicio del HTML, agrega un bloque de comentarios con:
+						   <!--
+						   META_TITLE: (máx 60 caracteres, incluye keyword + ciudad)
+						   META_DESCRIPTION: (150-160 caracteres, incluye keyword + ciudad, con beneficio claro)
+						   SLUG: (minúsculas, sin acentos, con guiones, basado en keyword + ciudad)
+						   -->
+						B) Luego el contenido del artículo con la estructura solicitada.
 
-CIERRE OBLIGATORIO (CALL TO ACTION):
-- Termina SIEMPRE con un <h2> llamado 'Visítanos' o 'Contáctanos'.
-- Debe invitar a la acción sin sonar agresivo.
-- Incluye el enlace al sitio web.
-- Incluye explícitamente solo los datos que NO sean 'No especificado':
-   Teléfono/WhatsApp, Dirección, Email.
-- No menciones campos con 'No especificado'.
+						CIERRE OBLIGATORIO (CALL TO ACTION):
+						- Termina SIEMPRE con un <h2> llamado 'Visítanos' o 'Contáctanos'.
+						- Debe invitar a la acción sin sonar agresivo.
+						- Incluye el enlace al sitio web.
+						- Incluye explícitamente solo los datos que NO sean 'No especificado':
+						   Teléfono/WhatsApp, Dirección, Email.
+						- No menciones campos con 'No especificado'.
 
-IMPORTANTE: Devuelve SOLO el HTML final, sin explicaciones.
-";
+						IMPORTANTE: Devuelve SOLO el HTML final, sin explicaciones.
+						";
 
 
                             $response = Http::withHeaders(['Content-Type' => 'application/json'])
