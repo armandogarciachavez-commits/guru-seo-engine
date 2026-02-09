@@ -166,14 +166,15 @@ class ArticleResource extends Resource
 
 
                             $response = Http::withHeaders(['Content-Type' => 'application/json'])
-                                ->timeout(120)
-                                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" . $apiKey, [
-                                    'contents' => [['parts' => [['text' => $prompt]]]],
-                                    ''generationConfig' => [
-  										'temperature' => 0.5,
-  										'topP' => 0.9,
-  										'maxOutputTokens' => 2048
-										]
+    ->timeout(120)
+    ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" . $apiKey, [
+        'contents' => [['parts' => [['text' => $prompt]]]], // <--- ¡AQUÍ FALTABA LA COMA!
+        'generationConfig' => [                              // <--- Solo una comilla simple '
+            'temperature' => 0.5,
+            'topP' => 0.9,
+            'maxOutputTokens' => 2048
+        ]
+    ]);
 
                             $content = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? null;
 
