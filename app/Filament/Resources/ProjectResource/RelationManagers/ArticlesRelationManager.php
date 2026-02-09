@@ -1,5 +1,5 @@
 <?php
-
+protected static ?string $title = 'PRUEBA FINAL ZOMBI 💀';
 namespace App\Filament\Resources\ProjectResource\RelationManagers;
 
 use Filament\Forms;
@@ -48,30 +48,16 @@ class ArticlesRelationManager extends RelationManager
                         default => 'gray',
                     }),
             ])
-            ->actions([
-                // --- AQUÍ ESTÁ LA BALA DE PLATA CONTRA EL ZOMBI ---
-                Tables\Actions\Action::make('write_article_relation')
-                    ->label('Redactar IA')
-                    ->icon('heroicon-o-sparkles')
-                    ->color('primary')
-                    ->requiresConfirmation()
-                    ->action(function (Article $record) {
-                        set_time_limit(120);
-                        
-                        $project = $this->getOwnerRecord();
-                        $contexto = $project->seo_strategy ?? 'Negocio local.';
-                        $ciudad = $project->target_city ?? 'Local';
+           ->actions([
+                // Botón de prueba simple
+                Tables\Actions\Action::make('test_button')
+                    ->label('BOTÓN DE PRUEBA')
+                    ->icon('heroicon-o-check')
+                    ->action(fn() => \Filament\Notifications\Notification::make()->title('Funciona')->send()),
 
-                        try {
-                            $apiKey = env('GEMINI_API_KEY');
-                            $prompt = "ROL: Redactor SEO. TAREA: Escribir artículo de 1000 palabras. TEMA: {$record->title}. CIUDAD: {$ciudad}. CONTEXTO: {$contexto}. FORMATO: HTML.";
-
-                            $response = Http::withHeaders(['Content-Type' => 'application/json'])
-                                ->timeout(120)
-                                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . $apiKey, [
-                                    'contents' => [['parts' => [['text' => $prompt]]]],
-                                    'generationConfig' => ['temperature' => 0.7]
-                                ]);
+                Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make(),
+            ])
 
                             $content = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? null;
                             if (!$content) throw new \Exception("IA vacía");
