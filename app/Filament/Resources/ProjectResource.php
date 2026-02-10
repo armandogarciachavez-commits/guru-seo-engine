@@ -11,7 +11,8 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Notifications\Notification;
-// Ya no necesitamos importar el Crawler aquí, porque eso lo hace el Job.
+// IMPORTANTE: Importamos el Job
+use App\Jobs\CrawlSiteJob;
 
 class ProjectResource extends Resource
 {
@@ -33,7 +34,6 @@ class ProjectResource extends Resource
                             ->maxLength(255)
                             ->label('Nombre del Proyecto'),
 
-                        // --- CAMPO UUID (API KEY) ---
                         Forms\Components\TextInput::make('uuid')
                             ->label('API Key (UUID)')
                             ->helperText('Copia este código para conectar tu sitio web o widget.')
@@ -89,7 +89,6 @@ class ProjectResource extends Resource
                             ->columnSpanFull(),
                     ])->columns(2),
 
-                // --- SECCIÓN DE CONTACTO ---
                 Forms\Components\Section::make('Datos de Contacto (Para la IA)')
                     ->description('Estos datos aparecerán automáticamente al final de los artículos.')
                     ->schema([
@@ -137,7 +136,7 @@ class ProjectResource extends Resource
                     ->label('CMS'),
             ])
             ->actions([
-                // --- ACCIÓN MODIFICADA PARA USAR JOBS ---
+                // --- AQUÍ ESTÁ EL CAMBIO CLAVE ---
                 Tables\Actions\Action::make('audit_site')
                     ->label('Rastrear Sitio')
                     ->icon('heroicon-o-eye')
@@ -148,12 +147,13 @@ class ProjectResource extends Resource
                     ->modalSubmitActionLabel('Sí, Iniciar Rastreo')
                     ->action(function (Project $record) {
                         try {
-                            // AQUÍ ESTÁ EL CAMBIO: Enviamos al Job en vez de hacerlo aquí
-                            \App\Jobs\CrawlSiteJob::dispatch($record);
+                            // 1. Enviamos la tarea al Job (Esto tarda 0.1 segundos)
+                            CrawlSiteJob::dispatch($record);
 
+                            // 2. Avisamos al usuario
                             Notification::make()
                                 ->title('Rastreo Iniciado')
-                                ->body('El análisis se está ejecutando en segundo plano. Revisa los resultados en unos minutos.')
+                                ->body('El análisis se está ejecutando en segundo plano. Los resultados aparecerán pronto.')
                                 ->success()
                                 ->send();
 
@@ -165,7 +165,7 @@ class ProjectResource extends Resource
                                 ->send();
                         }
                     }),
-                // ----------------------------------------
+                // ---------------------------------
 
                 Tables\Actions\EditAction::make()->button(),
                 Tables\Actions\DeleteAction::make()->button(),
