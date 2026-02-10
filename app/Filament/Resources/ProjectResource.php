@@ -2,10 +2,6 @@
 
 namespace App\Filament\Resources;
 
-use App\Services\SeoCrawler;
-use Spatie\Crawler\Crawler;
-use Spatie\Crawler\CrawlProfiles\CrawlInternalUrls;
-use App\Models\CrawlResult;
 use App\Filament\Resources\ProjectResource\Pages;
 use App\Filament\Resources\ProjectResource\RelationManagers;
 use App\Models\Project;
@@ -15,6 +11,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Notifications\Notification;
+// Ya no necesitamos importar el Crawler aquí, porque eso lo hace el Job.
 
 class ProjectResource extends Resource
 {
@@ -36,15 +33,14 @@ class ProjectResource extends Resource
                             ->maxLength(255)
                             ->label('Nombre del Proyecto'),
 
-                        // --- NUEVO CAMPO UUID (API KEY) ---
+                        // --- CAMPO UUID (API KEY) ---
                         Forms\Components\TextInput::make('uuid')
                             ->label('API Key (UUID)')
                             ->helperText('Copia este código para conectar tu sitio web o widget.')
-                            ->disabled() // No editable
-                            ->dehydrated(false) // No enviar a guardar (ya está en BD)
-                            ->visible(fn ($record) => $record !== null) // Solo visible al editar
-                            ->columnSpanFull(), // Ocupa todo el ancho
-                        // ----------------------------------
+                            ->disabled()
+                            ->dehydrated(false)
+                            ->visible(fn ($record) => $record !== null)
+                            ->columnSpanFull(),
                         
                         Forms\Components\TextInput::make('domain_url')
                             ->url()
@@ -93,7 +89,7 @@ class ProjectResource extends Resource
                             ->columnSpanFull(),
                     ])->columns(2),
 
-                // --- AQUÍ ESTÁ LA NUEVA SECCIÓN DE CONTACTO ---
+                // --- SECCIÓN DE CONTACTO ---
                 Forms\Components\Section::make('Datos de Contacto (Para la IA)')
                     ->description('Estos datos aparecerán automáticamente al final de los artículos.')
                     ->schema([
@@ -113,7 +109,6 @@ class ProjectResource extends Resource
                             ->columnSpanFull()
                             ->placeholder('Calle, Número, Colonia, Ciudad...'),
                     ])->columns(2),
-                // ----------------------------------------------
             ]);
     }
 
@@ -142,48 +137,35 @@ class ProjectResource extends Resource
                     ->label('CMS'),
             ])
             ->actions([
+                // --- ACCIÓN MODIFICADA PARA USAR JOBS ---
                 Tables\Actions\Action::make('audit_site')
                     ->label('Rastrear Sitio')
                     ->icon('heroicon-o-eye')
                     ->color('warning')
                     ->requiresConfirmation()
                     ->modalHeading('¿Iniciar Auditoría Técnica?')
-                    ->modalDescription('El sistema analizará la estructura del sitio. Esto puede tardar varios minutos.')
+                    ->modalDescription('El sistema analizará el sitio en SEGUNDO PLANO. Puedes seguir trabajando mientras tanto.')
                     ->modalSubmitActionLabel('Sí, Iniciar Rastreo')
                     ->action(function (Project $record) {
-                        set_time_limit(600);
-                        ini_set('max_execution_time', 600);
-
-                        CrawlResult::where('project_id', $record->id)->delete();
-
-                        $url = $record->domain_url;
-                        if (!str_starts_with($url, 'http')) {
-                            $url = 'https://' . $url;
-                        }
-
                         try {
-                            Crawler::create()
-                                ->setCrawlObserver(new SeoCrawler($record))
-                                ->setCrawlProfile(new CrawlInternalUrls($url))
-                                ->setTotalCrawlLimit(50)
-                                ->startCrawling($url);
+                            // AQUÍ ESTÁ EL CAMBIO: Enviamos al Job en vez de hacerlo aquí
+                            \App\Jobs\CrawlSiteJob::dispatch($record);
 
                             Notification::make()
-                                ->title('Rastreo Completado')
-                                ->body('Se han analizado las páginas del sitio.')
+                                ->title('Rastreo Iniciado')
+                                ->body('El análisis se está ejecutando en segundo plano. Revisa los resultados en unos minutos.')
                                 ->success()
                                 ->send();
 
                         } catch (\Exception $e) {
-                            $cleanMessage = mb_convert_encoding($e->getMessage(), 'UTF-8', 'UTF-8');
-                            
                             Notification::make()
-                                ->title('Error en Rastreo')
-                                ->body($cleanMessage)
+                                ->title('Error al iniciar')
+                                ->body($e->getMessage())
                                 ->danger()
                                 ->send();
                         }
                     }),
+                // ----------------------------------------
 
                 Tables\Actions\EditAction::make()->button(),
                 Tables\Actions\DeleteAction::make()->button(),
