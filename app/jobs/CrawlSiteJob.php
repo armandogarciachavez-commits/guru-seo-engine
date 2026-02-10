@@ -19,7 +19,7 @@ class CrawlSiteJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $project;
-    public $timeout = 600; // Permitir que este trabajo corra por 10 minutos
+    public $timeout = 600; // 10 minutos máximo
 
     public function __construct(Project $project)
     {
@@ -28,28 +28,29 @@ class CrawlSiteJob implements ShouldQueue
 
     public function handle(): void
     {
-        // Limpiamos resultados viejos
+        // 1. Limpiamos resultados viejos para empezar de cero
         CrawlResult::where('project_id', $this->project->id)->delete();
 
+        // 2. Preparamos la URL
         $url = $this->project->domain_url;
         if (!str_starts_with($url, 'http')) {
             $url = 'https://' . $url;
         }
 
-        Log::info("Iniciando rastreo para: " . $url);
+        Log::info("JOB: Iniciando rastreo para: " . $url);
 
         try {
+            // 3. Ejecutamos el Crawler (Esto es lo que tardaba 40s)
             Crawler::create()
                 ->setCrawlObserver(new SeoCrawler($this->project))
                 ->setCrawlProfile(new CrawlInternalUrls($url))
-                ->setTotalCrawlLimit(50) // Límite de páginas
-                // ->setDelayBetweenRequests(500) // Opcional: Medio segundo de pausa para no saturar
+                ->setTotalCrawlLimit(50) // Analiza hasta 50 páginas
                 ->startCrawling($url);
 
-            Log::info("Rastreo finalizado para: " . $url);
+            Log::info("JOB: Rastreo finalizado exitosamente.");
 
         } catch (\Exception $e) {
-            Log::error("Error en rastreo: " . $e->getMessage());
+            Log::error("JOB ERROR: " . $e->getMessage());
         }
     }
 }
