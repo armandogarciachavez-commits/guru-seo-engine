@@ -7,38 +7,39 @@ use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
+use App\Models\Article;
 use Illuminate\Support\Facades\Http;
 use Filament\Notifications\Notification;
-use App\Models\Article;
 
 class ArticlesRelationManager extends RelationManager
 {
     protected static string $relationship = 'articles';
 
-    protected static ?string $title = 'Calendario Editorial & Redacción'; // Título más descriptivo
-    protected static ?string $icon = 'heroicon-m-calendar-days';
+    protected static ?string $title = 'Calendario Editorial & Redacción';
 
     public function form(Form $form): Form
     {
         return $form
             ->schema([
                 Forms\Components\TextInput::make('title')
-                    ->label('Título')
                     ->required()
-                    ->columnSpanFull(),
-                
-                Forms\Components\Grid::make(2)
-                    ->schema([
-                        Forms\Components\TextInput::make('keyword')
-                            ->label('Palabra Clave'),
-                        Forms\Components\DateTimePicker::make('scheduled_date') // DateTimePicker para elegir hora también
-                            ->label('Fecha y Hora de Publicación')
-                            ->required(),
-                    ]),
+                    ->maxLength(255)
+                    ->label('Título del Artículo'),
 
-                Forms\Components\RichEditor::make('content')
-                    ->label('Contenido')
-                    ->columnSpanFull(),
+                Forms\Components\TextInput::make('keyword')
+                    ->label('Palabra Clave'),
+
+                Forms\Components\DatePicker::make('scheduled_date')
+                    ->label('Fecha de Publicación')
+                    ->required(), // Opcional: hazlo requerido si quieres forzar una fecha
+
+                Forms\Components\Select::make('status')
+                    ->options([
+                        'pending' => 'Pendiente',
+                        'generated' => 'Redactado',
+                        'published' => 'Publicado',
+                    ])
+                    ->default('pending'),
             ]);
     }
 
@@ -46,18 +47,24 @@ class ArticlesRelationManager extends RelationManager
     {
         return $table
             ->recordTitleAttribute('title')
+            // ORDENAR: Mostrar primero los próximos a salir
+            ->defaultSort('scheduled_date', 'asc') 
             ->columns([
-                // 1. TÍTULO
-                Tables\Columns\TextColumn::make('title')
-                    ->label('Título del Artículo')
-                    ->limit(40)
-                    ->searchable()
-                    ->weight('bold')
-                    ->tooltip(fn (Article $record): string => $record->title),
+                // 1. FECHA (Lo que faltaba)
+                Tables\Columns\TextColumn::make('scheduled_date')
+                    ->label('Programado')
+                    ->date('d M, Y') // Ej: 10 Feb, 2026
+                    ->sortable()
+                    ->icon('heroicon-m-calendar'),
 
-                // 2. ESTADO
+                // 2. TÍTULO
+                Tables\Columns\TextColumn::make('title')
+                    ->label('Título')
+                    ->searchable()
+                    ->limit(30),
+
+                // 3. ESTADO
                 Tables\Columns\TextColumn::make('status')
-                    ->label('Estado')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         'pending' => 'gray',
@@ -65,73 +72,77 @@ class ArticlesRelationManager extends RelationManager
                         'published' => 'success',
                         default => 'gray',
                     }),
-
-                // 3. FECHA Y HORA (Formato solicitado)
-                Tables\Columns\TextColumn::make('scheduled_date')
-                    ->label('Fecha Programada')
-                    ->dateTime('d/m/Y h:i A') // Ej: 10/02/2026 04:30 PM
-                    ->sortable()
-                    ->icon('heroicon-m-calendar'),
+            ])
+            ->filters([
+                //
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make()->label('Agregar Manualmente'),
+                Tables\Actions\CreateAction::make()
+                    ->label('Programar Nuevo Post'),
             ])
             ->actions([
-                // --- BOTÓN IA ---
-                Tables\Actions\Action::make('write_article_ai')
-                    ->label('Redactar IA')
+                // Acción de Redactar con IA (Copiada del Resource principal para tenerla aquí también)
+                Tables\Actions\Action::make('write_article')
+                    ->label('IA')
                     ->icon('heroicon-o-sparkles')
-                    ->color('info')
+                    ->color('primary')
                     ->requiresConfirmation()
-                    ->modalHeading('Generar Contenido')
-                    ->action(function (Article $record, $livewire) {
-                        $project = $livewire->getOwnerRecord();
-                        $ciudad = $project->target_city ?? 'Local';
-                        $contexto = $project->seo_strategy ?? 'Negocio Profesional';
+                    ->action(function (Article $record) {
+                        // TIEMPO EXTRA
+                        set_time_limit(120);
+                        
+                        // OBTENER DATOS
+                        $project = $this->getOwnerRecord(); // En RelationManager, el dueño es el Proyecto
+                        $projectUrl = $project->domain_url;
+                        
+                        // Datos contacto
+                        $phone = $project->phone ?? 'No especificado';
+                        $email = $project->email ?? 'No especificado';
+                        $address = $project->address ?? 'No especificado';
 
                         try {
                             $apiKey = env('GEMINI_API_KEY');
                             
                             $prompt = "
-                                ACTÚA COMO: Redactor SEO Senior.
-                                TAREA: Escribir artículo de blog de 800-1000 palabras.
-                                TÍTULO: {$record->title}
-                                CIUDAD OBJETIVO: {$ciudad}.
-                                CONTEXTO NEGOCIO: {$contexto}.
-                                FORMATO: HTML limpio (h2, h3, p, ul).
-                                TONO: Persuasivo, experto y optimizado para conversión.
+                                ROL: Redactor SEO.
+                                TÍTULO: '{$record->title}'
+                                KEYWORD: '{$record->keyword}'
+                                DATOS CONTACTO: {$project->name}, {$phone}, {$email}, {$address}, {$projectUrl}.
+                                
+                                INSTRUCCIÓN: Escribe un artículo de blog en HTML puro (800 palabras).
+                                CIERRE: Incluye un llamado a la acción con los datos de contacto y el enlace al sitio ({$projectUrl}).
                             ";
 
                             $response = Http::withHeaders(['Content-Type' => 'application/json'])
-                                ->timeout(60)
-                                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . $apiKey, [
+                                ->timeout(120)
+                                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" . $apiKey, [
                                     'contents' => [['parts' => [['text' => $prompt]]]],
+                                    'generationConfig' => ['temperature' => 0.7]
                                 ]);
 
-                            $texto = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? null;
-                            if (!$texto) throw new \Exception("Sin respuesta de IA");
+                            $content = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? null;
+
+                            if (!$content) throw new \Exception("Error IA");
+
+                            $content = str_replace(['```html', '```'], '', $content);
 
                             $record->update([
-                                'content' => str_replace(['```html', '```'], '', $texto),
+                                'content' => $content,
                                 'status' => 'generated'
                             ]);
 
-                            Notification::make()->title('Contenido Generado')->success()->send();
+                            Notification::make()->title('Redactado con éxito')->success()->send();
 
                         } catch (\Exception $e) {
                             Notification::make()->title('Error')->body($e->getMessage())->danger()->send();
                         }
                     }),
-                
+
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])
-            // --- AQUÍ ESTÁ LA ACCIÓN EN LOTE (BULK ACTIONS) ---
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make()
-                        ->label('Borrar Seleccionados'),
-                ]),
+                Tables\Actions\DeleteBulkAction::make(),
             ]);
     }
 }
