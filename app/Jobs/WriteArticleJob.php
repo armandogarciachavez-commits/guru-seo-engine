@@ -11,6 +11,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Carbon\Carbon; // Importamos Carbon para manejar fechas
 
 class WriteArticleJob implements ShouldQueue
 {
@@ -22,7 +23,6 @@ class WriteArticleJob implements ShouldQueue
     public function __construct(Article $article)
     {
         $this->article = $article;
-        // Sin forzar conexión, dejamos que el .env mande
     }
 
     public function handle(): void
@@ -44,7 +44,7 @@ class WriteArticleJob implements ShouldQueue
         try {
             $apiKey = env('GEMINI_API_KEY');
             
-            // URL LIMPIA (Aquí estaba el error de caracteres raros)
+            // URL LIMPIA
             $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" . $apiKey;
 
             $prompt = "
@@ -61,7 +61,7 @@ class WriteArticleJob implements ShouldQueue
 
             $response = Http::withHeaders(['Content-Type' => 'application/json'])
                 ->timeout(180)
-                ->post($url, [ // Usamos la variable $url limpia
+                ->post($url, [ 
                     'contents' => [['parts' => [['text' => $prompt]]]],
                     'generationConfig' => ['temperature' => 0.7]
                 ]);
@@ -69,7 +69,7 @@ class WriteArticleJob implements ShouldQueue
             $content = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? null;
 
             if (!$content) {
-                Log::error("REDACCIÓN FALLIDA: Gemini devolvió vacío. " . $response->body());
+                Log::error("REDACCIÓN FALLIDA: Gemini devolvió vacío.");
                 return;
             }
 
@@ -78,12 +78,22 @@ class WriteArticleJob implements ShouldQueue
             $content = trim($content);
             $content = mb_convert_encoding($content, 'UTF-8', 'UTF-8');
 
+            // --- LÓGICA DE PUBLICACIÓN AUTOMÁTICA ---
+            $status = 'generated'; // Por defecto: Revisión (Amarillo)
+            
+            // Si la fecha programada es hoy o ya pasó...
+            if (Carbon::parse($this->article->scheduled_date)->endOfDay()->isPast() || 
+                Carbon::parse($this->article->scheduled_date)->isToday()) {
+                $status = 'published'; // ¡PUBLICADO! (Verde)
+            }
+            // ----------------------------------------
+
             $this->article->update([
                 'content' => $content,
-                'status' => 'generated'
+                'status' => $status
             ]);
 
-            Log::info("REDACCIÓN ÉXITO: Artículo ID {$this->article->id} guardado.");
+            Log::info("REDACCIÓN ÉXITO: Artículo ID {$this->article->id} guardado como {$status}.");
 
         } catch (\Exception $e) {
             Log::error("REDACCIÓN ERROR CRÍTICO: " . $e->getMessage());
