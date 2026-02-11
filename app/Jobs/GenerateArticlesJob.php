@@ -18,9 +18,6 @@ class GenerateArticlesJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    // --- ❌ BORRAMOS LA LÍNEA QUE CAUSÓ EL ERROR ---
-    // public $connection = 'database'; 
-    
     public $project;
     public $frequency;
     public $startDate;
@@ -31,9 +28,7 @@ class GenerateArticlesJob implements ShouldQueue
         $this->project = $project;
         $this->frequency = $frequency;
         $this->startDate = $startDate;
-
-        // --- ✅ LA PONEMOS AQUÍ (FORMA CORRECTA) ---
-        $this->onConnection('database');
+        // Ya no forzamos la conexión aquí, confiamos en el .env de DigitalOcean
     }
 
     public function handle(): void
@@ -54,6 +49,9 @@ class GenerateArticlesJob implements ShouldQueue
         try {
             $apiKey = env('GEMINI_API_KEY');
             
+            // URL LIMPIA Y SEGURA (Para evitar error cURL 3)
+            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" . $apiKey;
+            
             $prompt = "
                 ACTUA COMO: API JSON estricta.
                 CONTEXTO: {$strategyClean}
@@ -63,7 +61,7 @@ class GenerateArticlesJob implements ShouldQueue
 
             $response = Http::withHeaders(['Content-Type' => 'application/json'])
                 ->timeout(120)
-                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" . $apiKey, [
+                ->post($url, [ // Usamos la variable limpia
                     'contents' => [['parts' => [['text' => $prompt]]]],
                     'generationConfig' => ['temperature' => 0.5]
                 ]);
