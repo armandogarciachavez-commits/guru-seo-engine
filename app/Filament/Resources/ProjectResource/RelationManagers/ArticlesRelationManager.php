@@ -94,7 +94,7 @@ class ArticlesRelationManager extends RelationManager
                     ->action(function (Article $record) {
                         try {
                             // Enviamos al Job
-                            WriteArticleJob::dispatch($record);
+                            WriteArticleJob::dispatch($record);->onConnection('database');
 
                             Notification::make()
                                 ->title('Redacción Iniciada ✍️')
