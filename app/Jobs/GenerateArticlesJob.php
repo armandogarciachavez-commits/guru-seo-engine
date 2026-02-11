@@ -18,10 +18,9 @@ class GenerateArticlesJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    // --- ESTA LÍNEA ES LA CLAVE PARA OBLIGARLO A ENTRAR AL BUZÓN ---
-    public $connection = 'database'; 
-    // ---------------------------------------------------------------
-
+    // --- ❌ BORRAMOS LA LÍNEA QUE CAUSÓ EL ERROR ---
+    // public $connection = 'database'; 
+    
     public $project;
     public $frequency;
     public $startDate;
@@ -32,6 +31,9 @@ class GenerateArticlesJob implements ShouldQueue
         $this->project = $project;
         $this->frequency = $frequency;
         $this->startDate = $startDate;
+
+        // --- ✅ LA PONEMOS AQUÍ (FORMA CORRECTA) ---
+        $this->onConnection('database');
     }
 
     public function handle(): void
