@@ -26,13 +26,13 @@ class ArticlesRelationManager extends RelationManager
                 Forms\Components\TextInput::make('title')
                     ->required()
                     ->maxLength(255)
-                    ->label('Titulo del Articulo'),
+                    ->label('Título del Artículo'),
 
                 Forms\Components\TextInput::make('keyword')
                     ->label('Palabra Clave'),
 
                 Forms\Components\DatePicker::make('scheduled_date')
-                    ->label('Fecha de Publicacion')
+                    ->label('Fecha de Publicación')
                     ->required(),
 
                 Forms\Components\Select::make('status')
@@ -42,6 +42,13 @@ class ArticlesRelationManager extends RelationManager
                         'published' => 'Publicado',
                     ])
                     ->default('pending'),
+
+                // --- ¡AQUÍ ESTÁ LA SOLUCIÓN! ---
+                // Agregamos el editor para ver el contenido
+                Forms\Components\RichEditor::make('content')
+                    ->label('Contenido (Generado por IA)')
+                    ->columnSpanFull(), // Para que ocupe todo el ancho
+                // -------------------------------
             ]);
     }
 
@@ -58,7 +65,7 @@ class ArticlesRelationManager extends RelationManager
                     ->icon('heroicon-m-calendar'),
 
                 Tables\Columns\TextColumn::make('title')
-                    ->label('Titulo')
+                    ->label('Título')
                     ->searchable()
                     ->limit(30),
 
@@ -76,7 +83,7 @@ class ArticlesRelationManager extends RelationManager
                     ->label('Programar Nuevo Post'),
             ])
             ->actions([
-                // --- BOTON IA (AHORA ASINCRONO) ---
+                // --- BOTÓN IA (ASÍNCRONO / JOB) ---
                 Tables\Actions\Action::make('write_article')
                     ->label('IA')
                     ->icon('heroicon-o-sparkles')

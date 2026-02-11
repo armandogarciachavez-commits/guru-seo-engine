@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Str; // <--- 1. IMPORTANTE: La herramienta para crear slugs
+use Illuminate\Support\Str;
 
 class Article extends Model
 {
@@ -14,8 +14,10 @@ class Article extends Model
     protected $fillable = [
         'project_id',
         'title',
-        'slug', // <--- 2. Asegúrate que esté autorizado
-        'content',
+        'slug',
+        'keyword',        // <--- FALTABA ESTE (Vital para la IA)
+        'scheduled_date', // <--- FALTABA ESTE (Vital para el calendario)
+        'content',        // <--- Este ya estaba, ¡bien!
         'image_url',
         'status',
         'is_published',
@@ -25,18 +27,15 @@ class Article extends Model
     protected $casts = [
         'is_published' => 'boolean',
         'published_at' => 'datetime',
+        'scheduled_date' => 'date', // <--- Recomendado castear esto como fecha
     ];
 
-    /**
-     * 3. MAGIA: Al crear, si no hay slug, lo creamos desde el título.
-     */
     protected static function boot()
     {
         parent::boot();
 
         static::creating(function ($article) {
             if (empty($article->slug)) {
-                // Convierte "Qué es un Coach?" en "que-es-un-coach"
                 $article->slug = Str::slug($article->title);
             }
         });
