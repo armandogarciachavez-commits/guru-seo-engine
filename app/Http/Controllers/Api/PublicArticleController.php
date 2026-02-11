@@ -11,7 +11,7 @@ class PublicArticleController extends Controller
 {
     public function index(Request $request)
     {
-        // 1. Recibimos la 'api_key' que manda el plugin de WordPress
+        // 1. Recibimos la 'api_key' (UUID)
         $uuid = $request->query('api_key');
 
         if (!$uuid) {
@@ -20,8 +20,7 @@ class PublicArticleController extends Controller
             ], 400);
         }
 
-        // 2. Buscamos el proyecto usando la columna 'uuid'
-        // (Confirmado por tu migración 2026_02_09_183309_add_uuid...)
+        // 2. Buscamos el proyecto
         $project = Project::where('uuid', $uuid)->first();
 
         if (!$project) {
@@ -30,11 +29,22 @@ class PublicArticleController extends Controller
             ], 403);
         }
 
-        // 3. Obtenemos los artículos de ESE proyecto
+        // 3. --- LÓGICA DE CANTIDAD (NUEVO) ---
+        // Leemos el límite que pide el plugin. Si no pide, damos 9.
+        $limit = $request->query('limit', 9);
+        
+        // Convertimos a número entero
+        $limit = (int) $limit;
+
+        // Validaciones de seguridad (Mínimo 1, Máximo 50)
+        if ($limit < 1) $limit = 1;
+        if ($limit > 50) $limit = 50;
+
+        // 4. Obtenemos los artículos
         $articles = Article::where('project_id', $project->id)
-                           ->where('status', 'published') // Solo los publicados
+                           ->where('status', 'published') // Solo publicados
                            ->orderBy('created_at', 'desc') // Los más nuevos primero
-                           ->limit(20) // Límite de seguridad para no saturar
+                           ->limit($limit) // ✅ APLICAMOS EL LÍMITE DINÁMICO
                            ->get();
 
         return response()->json($articles);
