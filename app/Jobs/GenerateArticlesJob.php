@@ -11,16 +11,21 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Carbon\Carbon;
 
 class GenerateArticlesJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    // --- ESTA LÍNEA ES LA CLAVE PARA OBLIGARLO A ENTRAR AL BUZÓN ---
+    public $connection = 'database'; 
+    // ---------------------------------------------------------------
+
     public $project;
     public $frequency;
     public $startDate;
-    public $timeout = 600; // 10 minutos
+    public $timeout = 600; 
 
     public function __construct(Project $project, int $frequency, string $startDate)
     {
@@ -31,64 +36,56 @@ class GenerateArticlesJob implements ShouldQueue
 
     public function handle(): void
     {
-        Log::info("ARTÍCULOS: Iniciando generación para " . $this->project->name);
+        Log::info("PROGRAMAR JOB: Iniciando para " . $this->project->domain_url);
 
-        // 1. LIMPIEZA DE CARACTERES RAROS (Esto arregla el error UTF-8)
-        $strategyClean = mb_convert_encoding($this->project->seo_strategy, 'UTF-8', 'UTF-8');
-
-        if (empty($strategyClean)) {
-            Log::error("ARTÍCULOS: Estrategia vacía o corrupta.");
+        if (empty($this->project->seo_strategy)) {
+            Log::error("PROGRAMAR ERROR: No hay Estrategia SEO guardada.");
             return;
         }
 
-        $postsA_Generar = $this->frequency * 4; // 1 mes de contenido
-        $fechaInicio = Carbon::parse($this->startDate);
+        // Limpiamos la estrategia
+        $strategyClean = Str::limit(strip_tags($this->project->seo_strategy), 5000); 
+        $strategyClean = mb_convert_encoding($strategyClean, 'UTF-8', 'UTF-8');
 
+        $postsA_Generar = $this->frequency * 4; 
+        
         try {
             $apiKey = env('GEMINI_API_KEY');
             
-            // 2. Prompt para Gemini
             $prompt = "
-                ACTUA COMO: API JSON. 
-                CONTEXTO ESTRATÉGICO: {$strategyClean}
-                
-                TAREA: Generar una lista de {$postsA_Generar} ideas de artículos para blog basados en la estrategia.
-                
-                REGLAS:
-                - Devuelve SOLO un array JSON válido.
-                - Sin markdown, sin explicaciones.
-                
-                FORMATO JSON:
-                [
-                    {\"title\": \"Título atractivo\", \"keyword\": \"Palabra clave\", \"intention\": \"Informativa/Comercial\"}
-                ]
+                ACTUA COMO: API JSON estricta.
+                CONTEXTO: {$strategyClean}
+                TAREA: Generar {$postsA_Generar} títulos de artículos.
+                REGLAS: RESPONDE ÚNICAMENTE CON UN ARRAY JSON: [{\"title\": \"Título\", \"keyword\": \"Keyword\"}]
             ";
 
-            // 3. Llamada a la API
             $response = Http::withHeaders(['Content-Type' => 'application/json'])
                 ->timeout(120)
                 ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" . $apiKey, [
                     'contents' => [['parts' => [['text' => $prompt]]]],
-                    'generationConfig' => ['temperature' => 0.7]
+                    'generationConfig' => ['temperature' => 0.5]
                 ]);
 
-            $jsonText = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? '[]';
+            $jsonRaw = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? '[]';
+            $jsonClean = str_replace(['```json', '```'], '', $jsonRaw);
             
-            // Limpiar Markdown (```json ... ```)
-            $jsonText = str_replace(['```json', '```', '```'], '', $jsonText);
-            
-            $plan = json_decode($jsonText, true);
+            // Extracción segura del JSON
+            $start = strpos($jsonClean, '[');
+            $end = strrpos($jsonClean, ']');
+            if ($start !== false && $end !== false) {
+                $jsonClean = substr($jsonClean, $start, $end - $start + 1);
+            }
 
-            if (!is_array($plan)) {
-                Log::error("ARTÍCULOS: La IA no devolvió un JSON válido. Respuesta: " . substr($jsonText, 0, 100));
+            $plan = json_decode($jsonClean, true);
+
+            if (!is_array($plan) || empty($plan)) {
+                Log::error("PROGRAMAR ERROR: JSON inválido.");
                 return;
             }
 
-            // 4. Crear los artículos en la BD
-            $currentDate = $fechaInicio->copy();
+            $currentDate = Carbon::parse($this->startDate);
 
             foreach ($plan as $item) {
-                // Cálculo de fechas
                 if ($this->frequency == 3) $currentDate->addDays(2); 
                 elseif ($this->frequency == 5) {
                     $currentDate->addDay();
@@ -104,10 +101,10 @@ class GenerateArticlesJob implements ShouldQueue
                 ]);
             }
 
-            Log::info("ARTÍCULOS: Éxito. {$postsA_Generar} artículos creados.");
+            Log::info("PROGRAMAR ÉXITO: {$postsA_Generar} artículos creados.");
 
         } catch (\Exception $e) {
-            Log::error("ARTÍCULOS ERROR: " . $e->getMessage());
+            Log::error("PROGRAMAR CRASH: " . $e->getMessage());
         }
     }
 }
