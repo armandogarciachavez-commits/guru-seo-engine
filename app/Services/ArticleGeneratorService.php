@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\Project;
 use Gemini\Laravel\Facades\Gemini;
 use Illuminate\Support\Str;
+// 👇 IMPORTANTE: Importamos nuestro buscador de fotos
+use App\Services\PexelsService; 
 
 class ArticleGeneratorService
 {
@@ -44,6 +46,32 @@ class ArticleGeneratorService
     }
 
     /**
+     * 📸 NUEVO MÉTODO: Busca una imagen relacionada en Pexels.
+     * Usa la lógica de prioridad: Nicho > Estrategia > Ciudad > General.
+     */
+    public function fetchImage(Project $project): ?string
+    {
+        // 1. Decidir qué palabra clave buscar
+        // Si tiene 'niche' (Ej: Dentista), es lo mejor. 
+        // Si no, usamos la estrategia SEO o la ciudad.
+        $searchQuery = $project->niche 
+                    ?? $project->seo_strategy 
+                    ?? $project->target_city 
+                    ?? 'Negocios';
+
+        // 2. Llamar al servicio de Pexels
+        // (Si el servicio devuelve null, usamos una imagen de respaldo aquí mismo)
+        $imageUrl = PexelsService::search($searchQuery);
+
+        if (!$imageUrl) {
+            // Imagen de respaldo segura (Oficina genérica)
+            return 'https://images.pexels.com/photos/3183150/pexels-photo-3183150.jpeg';
+        }
+
+        return $imageUrl;
+    }
+
+    /**
      * Construye el prompt detallado usando los campos de la base de datos.
      */
     private function buildPrompt(Project $project, string $topic): string
@@ -56,6 +84,12 @@ class ArticleGeneratorService
         $services = $project->key_services ?? 'Servicios generales';
         $cta = $project->cta_instruction ?? 'Contáctanos para más información';
         $lang = $project->target_language ?? 'es-MX';
+        
+        // Agregamos los datos de contacto al prompt para que la IA los use si quiere
+        $contactInfo = "";
+        if ($project->phone) $contactInfo .= "Tel: {$project->phone}. ";
+        if ($project->email) $contactInfo .= "Email: {$project->email}. ";
+        if ($project->address) $contactInfo .= "Dirección: {$project->address}. ";
 
         return <<<EOT
 Actúa como un Redactor SEO Experto y Copywriter Senior especializado en {$location}.
@@ -70,6 +104,7 @@ DATOS DE LA EMPRESA (IDENTIDAD DE MARCA):
 - Público Objetivo: {$audience}
 - Servicios Clave a Vender: {$services}
 - Tono de Voz: {$voice}
+- Datos de Contacto: {$contactInfo}
 
 REQUISITOS DEL ARTÍCULO:
 1. **Formato HTML Puro:** Usa solo etiquetas <h1>, <h2>, <h3>, <p>, <ul>, <li>, <strong>. NO uses markdown (```), ni <html>, ni <body>.
@@ -84,6 +119,7 @@ REQUISITOS DEL ARTÍCULO:
 4. **Cierre (CTA):**
    - Termina con un párrafo fuerte invitando a la acción.
    - Usa esta instrucción específica: {$cta}.
+   - Si es relevante, incluye los datos de contacto al final.
 
 IDIOMA DE SALIDA: Español ({$lang})
 

@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Project;
 use App\Models\Article;
+use App\Services\ArticleGeneratorService; // <--- 1. IMPORTAMOS EL SERVICIO
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -21,24 +22,26 @@ class GenerateArticlesJob implements ShouldQueue
     public $project;
     public $frequency;
     public $startDate;
-    public $timeout = 600; 
+    public $timeout = 1200; // <--- AUMENTAMOS TIEMPO (20 mins) porque generar contenido toma tiempo
 
     public function __construct(Project $project, int $frequency, string $startDate)
     {
         $this->project = $project;
         $this->frequency = $frequency;
         $this->startDate = $startDate;
-        // Ya no forzamos la conexión aquí, confiamos en el .env de DigitalOcean
     }
 
     public function handle(): void
     {
-        Log::info("PROGRAMAR JOB: Iniciando para " . $this->project->domain_url);
+        Log::info("PLANIFICADOR: Iniciando para " . $this->project->domain_url);
 
         if (empty($this->project->seo_strategy)) {
-            Log::error("PROGRAMAR ERROR: No hay Estrategia SEO guardada.");
+            Log::error("PLANIFICADOR ERROR: No hay Estrategia SEO guardada.");
             return;
         }
+
+        // Instanciamos el servicio de generación (que ya incluye imágenes)
+        $generatorService = new ArticleGeneratorService(); // <--- 2. INICIALIZAMOS EL ESCRITOR
 
         // Limpiamos la estrategia
         $strategyClean = Str::limit(strip_tags($this->project->seo_strategy), 5000); 
@@ -49,7 +52,7 @@ class GenerateArticlesJob implements ShouldQueue
         try {
             $apiKey = env('GEMINI_API_KEY');
             
-            // URL LIMPIA Y SEGURA (Para evitar error cURL 3)
+            // 1. FASE DE PLANIFICACIÓN (Generar Títulos)
             $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" . $apiKey;
             
             $prompt = "
@@ -61,7 +64,7 @@ class GenerateArticlesJob implements ShouldQueue
 
             $response = Http::withHeaders(['Content-Type' => 'application/json'])
                 ->timeout(120)
-                ->post($url, [ // Usamos la variable limpia
+                ->post($url, [
                     'contents' => [['parts' => [['text' => $prompt]]]],
                     'generationConfig' => ['temperature' => 0.5]
                 ]);
@@ -69,7 +72,6 @@ class GenerateArticlesJob implements ShouldQueue
             $jsonRaw = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? '[]';
             $jsonClean = str_replace(['```json', '```'], '', $jsonRaw);
             
-            // Extracción segura del JSON
             $start = strpos($jsonClean, '[');
             $end = strrpos($jsonClean, ']');
             if ($start !== false && $end !== false) {
@@ -79,32 +81,57 @@ class GenerateArticlesJob implements ShouldQueue
             $plan = json_decode($jsonClean, true);
 
             if (!is_array($plan) || empty($plan)) {
-                Log::error("PROGRAMAR ERROR: JSON inválido.");
+                Log::error("PLANIFICADOR ERROR: JSON inválido.");
                 return;
             }
 
             $currentDate = Carbon::parse($this->startDate);
 
+            // 2. FASE DE PRODUCCIÓN (Escribir + Imagen)
             foreach ($plan as $item) {
+                // Calcular fecha
                 if ($this->frequency == 3) $currentDate->addDays(2); 
                 elseif ($this->frequency == 5) {
                     $currentDate->addDay();
                     if ($currentDate->isWeekend()) $currentDate->addDays(2);
                 } else $currentDate->addDays(3);
                 
-                Article::create([
+                // A. Crear el registro en BD
+                $article = Article::create([
                     'project_id' => $this->project->id,
                     'title' => $item['title'] ?? 'Sin título',
                     'keyword' => $item['keyword'] ?? 'General',
-                    'status' => 'pending', 
+                    'status' => 'draft', // Empezamos como borrador
                     'scheduled_date' => $currentDate->format('Y-m-d'),
                 ]);
+
+                // B. GENERAR CONTENIDO E IMAGEN (¡AQUÍ ESTÁ LA MAGIA!) ✨
+                try {
+                    // Generar Texto HTML
+                    $htmlContent = $generatorService->generate($this->project, $article->keyword);
+                    
+                    // Buscar Imagen en Pexels (usando el método que creamos hace un momento)
+                    $imageUrl = $generatorService->fetchImage($this->project);
+
+                    // Actualizar el artículo
+                    $article->update([
+                        'content' => $htmlContent,
+                        'thumbnail_url' => $imageUrl, // <--- Guardamos la foto
+                        'status' => 'generated' // <--- Listo para que el Reloj lo publique
+                    ]);
+
+                    // Pausa de seguridad para no saturar APIs (2 segundos)
+                    sleep(2);
+
+                } catch (\Exception $e) {
+                    Log::error("Error generando contenido para artículo ID {$article->id}: " . $e->getMessage());
+                }
             }
 
-            Log::info("PROGRAMAR ÉXITO: {$postsA_Generar} artículos creados.");
+            Log::info("PLANIFICADOR ÉXITO: {$postsA_Generar} artículos generados completamente con imagen.");
 
         } catch (\Exception $e) {
-            Log::error("PROGRAMAR CRASH: " . $e->getMessage());
+            Log::error("PLANIFICADOR CRASH: " . $e->getMessage());
         }
     }
 }
