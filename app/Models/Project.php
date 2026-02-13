@@ -20,7 +20,16 @@ class Project extends Model
         'target_city',
         'brand_voice',
         'seo_strategy',
-        'uuid', // <--- ¡CRÍTICO! SIN ESTO NO SE GUARDA EL CÓDIGO API
+        'uuid', // <--- ¡CRÍTICO!
+
+        // --- 🟢 NUEVOS CAMPOS DE CONTACTO (SOLUCIÓN A TU PROBLEMA) ---
+        'phone',
+        'email',
+        'address',
+
+        // --- 🔵 NUEVOS CAMPOS DE FACEBOOK (PARA LO QUE SIGUE) ---
+        'facebook_page_id',
+        'facebook_access_token',
     ];
 
     /**
