@@ -11,7 +11,6 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Filament\Notifications\Notification;
-// IMPORTANTE: Importamos el Job
 use App\Jobs\CrawlSiteJob;
 
 class ProjectResource extends Resource
@@ -26,6 +25,7 @@ class ProjectResource extends Resource
     {
         return $form
             ->schema([
+                // SECCIÓN 1: DETALLES GENERALES
                 Forms\Components\Section::make('Detalles del Proyecto')
                     ->description('Configuración principal.')
                     ->schema([
@@ -69,6 +69,7 @@ class ProjectResource extends Resource
                             ->label('Frecuencia'),
                     ])->columns(2),
 
+                // SECCIÓN 2: CONFIGURACIÓN DE CONTENIDO
                 Forms\Components\Section::make('Configuración de Contenido')
                     ->schema([
                         Forms\Components\TextInput::make('target_language')
@@ -89,6 +90,7 @@ class ProjectResource extends Resource
                             ->columnSpanFull(),
                     ])->columns(2),
 
+                // SECCIÓN 3: DATOS DE CONTACTO
                 Forms\Components\Section::make('Datos de Contacto (Para la IA)')
                     ->description('Estos datos aparecerán automáticamente al final de los artículos.')
                     ->schema([
@@ -108,6 +110,25 @@ class ProjectResource extends Resource
                             ->columnSpanFull()
                             ->placeholder('Calle, Número, Colonia, Ciudad...'),
                     ])->columns(2),
+
+                // --- 🟢 SECCIÓN 4: INTEGRACIÓN FACEBOOK (NUEVO) ---
+                Forms\Components\Section::make('Integración con Facebook (Automático)')
+                    ->description('Configura esto para que los artículos se publiquen solos en tu Fanpage.')
+                    ->schema([
+                        Forms\Components\TextInput::make('facebook_page_id')
+                            ->label('ID de la Página (Page ID)')
+                            ->placeholder('Ej: 100083...')
+                            ->helperText('Ve a la info de tu Fanpage para obtener este número.'),
+
+                        Forms\Components\TextInput::make('facebook_access_token')
+                            ->label('Token de Acceso (Long Lived Token)')
+                            ->password() // Oculto por seguridad
+                            ->revealable() // Botón de ojo para ver
+                            ->columnSpanFull()
+                            ->helperText('La llave maestra que permite publicar. No la compartas con nadie.'),
+                    ])
+                    ->collapsible() // Se puede cerrar
+                    ->collapsed(),  // Cerrado por defecto para no estorbar
             ]);
     }
 
@@ -136,7 +157,6 @@ class ProjectResource extends Resource
                     ->label('CMS'),
             ])
             ->actions([
-                // --- AQUÍ ESTÁ EL CAMBIO CLAVE ---
                 Tables\Actions\Action::make('audit_site')
                     ->label('Rastrear Sitio')
                     ->icon('heroicon-o-eye')
@@ -147,16 +167,12 @@ class ProjectResource extends Resource
                     ->modalSubmitActionLabel('Sí, Iniciar Rastreo')
                     ->action(function (Project $record) {
                         try {
-                            // 1. Enviamos la tarea al Job (Esto tarda 0.1 segundos)
                             CrawlSiteJob::dispatch($record);
-
-                            // 2. Avisamos al usuario
                             Notification::make()
                                 ->title('Rastreo Iniciado')
-                                ->body('El análisis se está ejecutando en segundo plano. Los resultados aparecerán pronto.')
+                                ->body('El análisis se está ejecutando en segundo plano.')
                                 ->success()
                                 ->send();
-
                         } catch (\Exception $e) {
                             Notification::make()
                                 ->title('Error al iniciar')
@@ -165,7 +181,6 @@ class ProjectResource extends Resource
                                 ->send();
                         }
                     }),
-                // ---------------------------------
 
                 Tables\Actions\EditAction::make()->button(),
                 Tables\Actions\DeleteAction::make()->button(),
