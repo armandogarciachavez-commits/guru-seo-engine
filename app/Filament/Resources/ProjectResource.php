@@ -72,6 +72,16 @@ class ProjectResource extends Resource
                 // SECCIÓN 2: CONFIGURACIÓN DE CONTENIDO
                 Forms\Components\Section::make('Configuración de Contenido')
                     ->schema([
+                        // 👇👇👇 AQUÍ ESTÁ EL CAMPO NUEVO 👇👇👇
+                        Forms\Components\TextInput::make('niche')
+                            ->label('Nicho / Rubro del Negocio')
+                            ->placeholder('Ej: Dentista, Bienes Raíces, Restaurante Italiano')
+                            ->helperText('CLAVE: Escribe aquí el tipo de negocio para que la IA busque fotos exactas en Pexels.')
+                            ->required()
+                            ->maxLength(255)
+                            ->columnSpanFull(),
+                        // 👆👆👆 FIN DEL CAMPO NUEVO 👆👆👆
+
                         Forms\Components\TextInput::make('target_language')
                             ->label('Idioma Objetivo')
                             ->default('es-MX')
@@ -111,7 +121,7 @@ class ProjectResource extends Resource
                             ->placeholder('Calle, Número, Colonia, Ciudad...'),
                     ])->columns(2),
 
-                // --- 🟢 SECCIÓN 4: INTEGRACIÓN FACEBOOK (NUEVO) ---
+                // SECCIÓN 4: INTEGRACIÓN FACEBOOK
                 Forms\Components\Section::make('Integración con Facebook (Automático)')
                     ->description('Configura esto para que los artículos se publiquen solos en tu Fanpage.')
                     ->schema([
