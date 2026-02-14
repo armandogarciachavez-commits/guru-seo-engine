@@ -21,6 +21,7 @@ class Project extends Model
         'brand_voice',
         'seo_strategy',
         'uuid', // <--- ¡CRÍTICO!
+		'thumbnail_url',
 
         // --- 🟢 NUEVOS CAMPOS DE CONTACTO (SOLUCIÓN A TU PROBLEMA) ---
         'phone',

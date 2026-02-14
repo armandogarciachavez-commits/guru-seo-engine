@@ -4,7 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Project;
 use App\Models\Article;
-use App\Services\ArticleGeneratorService; // <--- 1. IMPORTAMOS EL SERVICIO
+use App\Services\ArticleGeneratorService; // <--- Importamos el Servicio
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -22,7 +22,7 @@ class GenerateArticlesJob implements ShouldQueue
     public $project;
     public $frequency;
     public $startDate;
-    public $timeout = 1200; // <--- AUMENTAMOS TIEMPO (20 mins) porque generar contenido toma tiempo
+    public $timeout = 1200; // 20 minutos de espera (necesario para generar imágenes y texto)
 
     public function __construct(Project $project, int $frequency, string $startDate)
     {
@@ -40,10 +40,10 @@ class GenerateArticlesJob implements ShouldQueue
             return;
         }
 
-        // Instanciamos el servicio de generación (que ya incluye imágenes)
-        $generatorService = new ArticleGeneratorService(); // <--- 2. INICIALIZAMOS EL ESCRITOR
+        // Instanciamos el servicio (que ahora sabe buscar en Pexels)
+        $generatorService = new ArticleGeneratorService();
 
-        // Limpiamos la estrategia
+        // Limpieza de datos
         $strategyClean = Str::limit(strip_tags($this->project->seo_strategy), 5000); 
         $strategyClean = mb_convert_encoding($strategyClean, 'UTF-8', 'UTF-8');
 
@@ -69,9 +69,16 @@ class GenerateArticlesJob implements ShouldQueue
                     'generationConfig' => ['temperature' => 0.5]
                 ]);
 
+            // Validación de seguridad por si Gemini falla
+            if ($response->failed()) {
+                Log::error("PLANIFICADOR ERROR: Falló la conexión con Gemini. " . $response->body());
+                return;
+            }
+
             $jsonRaw = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? '[]';
             $jsonClean = str_replace(['```json', '```'], '', $jsonRaw);
             
+            // Extracción segura del JSON
             $start = strpos($jsonClean, '[');
             $end = strrpos($jsonClean, ']');
             if ($start !== false && $end !== false) {
@@ -81,13 +88,13 @@ class GenerateArticlesJob implements ShouldQueue
             $plan = json_decode($jsonClean, true);
 
             if (!is_array($plan) || empty($plan)) {
-                Log::error("PLANIFICADOR ERROR: JSON inválido.");
+                Log::error("PLANIFICADOR ERROR: JSON inválido recibido de la IA.");
                 return;
             }
 
             $currentDate = Carbon::parse($this->startDate);
 
-            // 2. FASE DE PRODUCCIÓN (Escribir + Imagen)
+            // 2. FASE DE PRODUCCIÓN (Escribir Texto + Buscar Imagen)
             foreach ($plan as $item) {
                 // Calcular fecha
                 if ($this->frequency == 3) $currentDate->addDays(2); 
@@ -96,31 +103,32 @@ class GenerateArticlesJob implements ShouldQueue
                     if ($currentDate->isWeekend()) $currentDate->addDays(2);
                 } else $currentDate->addDays(3);
                 
-                // A. Crear el registro en BD
+                // A. Crear el registro "Borrador"
                 $article = Article::create([
                     'project_id' => $this->project->id,
                     'title' => $item['title'] ?? 'Sin título',
                     'keyword' => $item['keyword'] ?? 'General',
-                    'status' => 'draft', // Empezamos como borrador
+                    'status' => 'draft',
                     'scheduled_date' => $currentDate->format('Y-m-d'),
                 ]);
 
-                // B. GENERAR CONTENIDO E IMAGEN (¡AQUÍ ESTÁ LA MAGIA!) ✨
+                // B. MAGIA: Generar HTML + Imagen Pexels
                 try {
-                    // Generar Texto HTML
+                    // 1. Generar Texto
                     $htmlContent = $generatorService->generate($this->project, $article->keyword);
                     
-                    // Buscar Imagen en Pexels (usando el método que creamos hace un momento)
+                    // 2. Buscar Imagen (Pexels)
+                    // Este método usa el "Niche" del proyecto para buscar la foto exacta
                     $imageUrl = $generatorService->fetchImage($this->project);
 
-                    // Actualizar el artículo
+                    // 3. Guardar todo y dejar listo para publicar
                     $article->update([
                         'content' => $htmlContent,
-                        'thumbnail_url' => $imageUrl, // <--- Guardamos la foto
-                        'status' => 'generated' // <--- Listo para que el Reloj lo publique
+                        'thumbnail_url' => $imageUrl, // Guardamos la URL de Pexels
+                        'status' => 'generated' // Estado listo para el "Reloj" automático
                     ]);
 
-                    // Pausa de seguridad para no saturar APIs (2 segundos)
+                    // Pausa técnica para respetar límites de API
                     sleep(2);
 
                 } catch (\Exception $e) {
@@ -128,7 +136,7 @@ class GenerateArticlesJob implements ShouldQueue
                 }
             }
 
-            Log::info("PLANIFICADOR ÉXITO: {$postsA_Generar} artículos generados completamente con imagen.");
+            Log::info("PLANIFICADOR ÉXITO: {$postsA_Generar} artículos creados con imagen.");
 
         } catch (\Exception $e) {
             Log::error("PLANIFICADOR CRASH: " . $e->getMessage());

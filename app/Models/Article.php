@@ -22,6 +22,7 @@ class Article extends Model
         'status',
         'is_published',
         'published_at',
+		'thumbnail_url',
     ];
 
     protected $casts = [
