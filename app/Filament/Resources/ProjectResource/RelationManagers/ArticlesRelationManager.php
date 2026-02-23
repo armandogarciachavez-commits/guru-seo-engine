@@ -107,10 +107,10 @@ class ArticlesRelationManager extends RelationManager
 
                         try {
                             GenerateArticlesJob::dispatch(
-                                $project, 
-                                (int) $data['frequency'], 
-                                $data['start_date']
-                            );
+    							$project, 
+    							(int) $data['frequency'], 
+    							$data['start_date']
+								)->onConnection('database'); // <--- EL MARTILLAZO 🔨
 
                             Notification::make()
                                 ->title("Programación Masiva Iniciada")
@@ -136,7 +136,7 @@ class ArticlesRelationManager extends RelationManager
                     ->action(function (Article $record) {
                         try {
                             // LLAMADA LIMPIA (Sin ->onConnection, ya lo definimos en .env)
-                            WriteArticleJob::dispatch($record);
+                            WriteArticleJob::dispatch($record)->onConnection('database');
 
                             Notification::make()
                                 ->title('Redacción Iniciada ✍️')
