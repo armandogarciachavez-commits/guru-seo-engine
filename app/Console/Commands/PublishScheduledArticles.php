@@ -19,10 +19,28 @@ class PublishScheduledArticles extends Command
         // Obtener fecha y hora actual
         $now = Carbon::now();
 
-        // Buscar artículos NO publicados cuya fecha programada ya pasó
-        $count = Article::where('status', '!=', 'published')
+        // Buscar artículos listos cuya fecha programada ya llegó
+        $articles = Article::with('project')
+            ->whereIn('status', ['generated', 'approved'])
             ->whereDate('scheduled_date', '<=', $now)
-            ->update(['status' => 'published']);
+            ->get();
+
+        $count = 0;
+
+        foreach ($articles as $article) {
+            // Nunca publicar artículos sin contenido
+            if (blank($article->content) && blank($article->html_content)) {
+                continue;
+            }
+
+            // Si el proyecto requiere aprobación manual, solo publicar aprobados
+            if ($article->project && ! $article->project->auto_publish && $article->status !== 'approved') {
+                continue;
+            }
+
+            $article->update(['status' => 'published']);
+            $count++;
+        }
 
         if ($count > 0) {
             $this->info("¡Se han publicado automáticamente {$count} artículos!");

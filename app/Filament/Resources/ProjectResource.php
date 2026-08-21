@@ -67,6 +67,11 @@ class ProjectResource extends Resource
                             ->default('weekly')
                             ->required()
                             ->label('Frecuencia'),
+
+                        Forms\Components\Toggle::make('auto_publish')
+                            ->label('Publicación automática')
+                            ->helperText('Si está apagado, los artículos requieren aprobación manual antes de publicarse.')
+                            ->default(true),
                     ])->columns(2),
 
                 // SECCIÓN 2: CONFIGURACIÓN DE CONTENIDO

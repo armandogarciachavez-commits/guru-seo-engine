@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\Project;
 use App\Models\Article;
 use App\Services\ArticleGeneratorService; // <--- Importamos el Servicio
+use App\Services\ArticleValidatorService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -50,10 +51,10 @@ class GenerateArticlesJob implements ShouldQueue
         $postsA_Generar = $this->frequency * 4; 
         
         try {
-            $apiKey = env('GEMINI_API_KEY');
-            
+            $apiKey = config('gemini.api_key');
+
             // 1. FASE DE PLANIFICACIÓN (Generar Títulos)
-            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" . $apiKey;
+            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
             
             $prompt = "
                 ACTUA COMO: API JSON estricta.
@@ -62,7 +63,10 @@ class GenerateArticlesJob implements ShouldQueue
                 REGLAS: RESPONDE ÚNICAMENTE CON UN ARRAY JSON: [{\"title\": \"Título\", \"keyword\": \"Keyword\"}]
             ";
 
-            $response = Http::withHeaders(['Content-Type' => 'application/json'])
+            $response = Http::withHeaders([
+                    'Content-Type' => 'application/json',
+                    'x-goog-api-key' => $apiKey,
+                ])
                 ->timeout(120)
                 ->post($url, [
                     'contents' => [['parts' => [['text' => $prompt]]]],
@@ -93,15 +97,25 @@ class GenerateArticlesJob implements ShouldQueue
             }
 
             $currentDate = Carbon::parse($this->startDate);
+            $validator = new ArticleValidatorService();
+            $isFirst = true;
 
             // 2. FASE DE PRODUCCIÓN (Escribir Texto + Buscar Imagen)
             foreach ($plan as $item) {
-                // Calcular fecha
-                if ($this->frequency == 3) $currentDate->addDays(2); 
-                elseif ($this->frequency == 5) {
+                // Calcular fecha (el primer artículo respeta la fecha de inicio elegida)
+                if ($isFirst) {
+                    $isFirst = false;
+                } elseif ($this->frequency == 1) {
+                    // 1/semana: siempre el mismo día de la semana que la fecha de inicio
+                    $currentDate->addDays(7);
+                } elseif ($this->frequency == 3) {
+                    $currentDate->addDays(2);
+                } elseif ($this->frequency == 5) {
                     $currentDate->addDay();
                     if ($currentDate->isWeekend()) $currentDate->addDays(2);
-                } else $currentDate->addDays(3);
+                } else {
+                    $currentDate->addDays(3);
+                }
                 
                 // A. Crear el registro "Borrador"
                 $article = Article::create([
@@ -121,11 +135,16 @@ class GenerateArticlesJob implements ShouldQueue
                     // Este método usa el "Niche" del proyecto para buscar la foto exacta
                     $imageUrl = $generatorService->fetchImage($this->project);
 
-                    // 3. Guardar todo y dejar listo para publicar
+                    // 3. Control de calidad: verificar que la IA siguió las indicaciones
+                    $quality = $validator->validate($htmlContent, $article->keyword, $this->project->domain_url);
+
+                    // 4. Guardar todo y dejar listo para publicar
                     $article->update([
                         'content' => $htmlContent,
                         'thumbnail_url' => $imageUrl, // Guardamos la URL de Pexels
-                        'status' => 'generated' // Estado listo para el "Reloj" automático
+                        'quality_issues' => $quality,
+                        // Si falló reglas críticas queda en revisión manual; si no, listo para el "Reloj"
+                        'status' => $validator->hasCriticalIssues($quality) ? 'needs_review' : 'generated',
                     ]);
 
                     // Pausa técnica para respetar límites de API

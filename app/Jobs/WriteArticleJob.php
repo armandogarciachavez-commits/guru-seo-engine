@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\Article;
 use App\Models\Project;
+use App\Services\ArticleValidatorService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -42,10 +43,9 @@ class WriteArticleJob implements ShouldQueue
         $address = $project->address ?? 'No especificado';
 
         try {
-            $apiKey = env('GEMINI_API_KEY');
-            
-            // URL LIMPIA
-            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" . $apiKey;
+            $apiKey = config('gemini.api_key');
+
+            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
             $prompt = "
                 ROL: Redactor SEO Experto.
@@ -59,7 +59,10 @@ class WriteArticleJob implements ShouldQueue
                 IMPORTANTE: NO uses markdown. Devuelve solo el código HTML.
             ";
 
-            $response = Http::withHeaders(['Content-Type' => 'application/json'])
+            $response = Http::withHeaders([
+                    'Content-Type' => 'application/json',
+                    'x-goog-api-key' => $apiKey,
+                ])
                 ->timeout(180)
                 ->post($url, [ 
                     'contents' => [['parts' => [['text' => $prompt]]]],
@@ -78,19 +81,26 @@ class WriteArticleJob implements ShouldQueue
             $content = trim($content);
             $content = mb_convert_encoding($content, 'UTF-8', 'UTF-8');
 
+            // --- CONTROL DE CALIDAD ---
+            $validator = new ArticleValidatorService();
+            $quality = $validator->validate($content, $this->article->keyword, $project->domain_url);
+
             // --- LÓGICA DE PUBLICACIÓN AUTOMÁTICA ---
             $status = 'generated'; // Por defecto: Revisión (Amarillo)
-            
-            // Si la fecha programada es hoy o ya pasó...
-            if (Carbon::parse($this->article->scheduled_date)->endOfDay()->isPast() || 
-                Carbon::parse($this->article->scheduled_date)->isToday()) {
+
+            if ($validator->hasCriticalIssues($quality)) {
+                $status = 'needs_review'; // Falló reglas críticas: requiere revisión manual
+            } elseif ($project->auto_publish &&
+                (Carbon::parse($this->article->scheduled_date)->endOfDay()->isPast() ||
+                Carbon::parse($this->article->scheduled_date)->isToday())) {
                 $status = 'published'; // ¡PUBLICADO! (Verde)
             }
             // ----------------------------------------
 
             $this->article->update([
                 'content' => $content,
-                'status' => $status
+                'status' => $status,
+                'quality_issues' => $quality,
             ]);
 
             Log::info("REDACCIÓN ÉXITO: Artículo ID {$this->article->id} guardado como {$status}.");

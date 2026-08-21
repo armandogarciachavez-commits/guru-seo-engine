@@ -45,7 +45,7 @@ class PublicArticleController extends Controller
                            ->where('status', 'published') // Solo publicados
                            ->orderBy('created_at', 'desc') // Los más nuevos primero
                            ->limit($limit) // ✅ APLICAMOS EL LÍMITE DINÁMICO
-                           ->get();
+                           ->get(['id', 'title', 'slug', 'keyword', 'content', 'html_content', 'image_url', 'thumbnail_url', 'scheduled_date', 'published_at', 'created_at']);
 
         return response()->json($articles);
     }
