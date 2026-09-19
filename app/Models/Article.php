@@ -20,18 +20,13 @@ class Article extends Model
         'content',
         'html_content',
         'competitor_data',
-        'image_url',
         'status',
-        'is_published',
-        'published_at',
         'published_url',
         'quality_issues',
         'thumbnail_url',
     ];
 
     protected $casts = [
-        'is_published' => 'boolean',
-        'published_at' => 'datetime',
         'scheduled_date' => 'date',
         'competitor_data' => 'array',
         'quality_issues' => 'array',

@@ -4,21 +4,23 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\ProjectResource\Pages;
 use App\Filament\Resources\ProjectResource\RelationManagers;
+use App\Jobs\CrawlSiteJob;
 use App\Models\Project;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Filament\Notifications\Notification;
-use App\Jobs\CrawlSiteJob;
 
 class ProjectResource extends Resource
 {
     protected static ?string $model = Project::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-rocket-launch';
+
     protected static ?string $navigationLabel = 'Mis Proyectos';
+
     protected static ?string $modelLabel = 'Proyecto';
 
     public static function form(Form $form): Form
@@ -41,7 +43,7 @@ class ProjectResource extends Resource
                             ->dehydrated(false)
                             ->visible(fn ($record) => $record !== null)
                             ->columnSpanFull(),
-                        
+
                         Forms\Components\TextInput::make('domain_url')
                             ->url()
                             ->required()
@@ -57,7 +59,7 @@ class ProjectResource extends Resource
                             ])
                             ->required()
                             ->label('CMS'),
-                            
+
                         Forms\Components\Select::make('posting_frequency')
                             ->options([
                                 'daily' => 'Diario',
@@ -100,6 +102,7 @@ class ProjectResource extends Resource
 
                         Forms\Components\Textarea::make('brand_voice')
                             ->label('Voz de Marca')
+                            ->required()
                             ->rows(3)
                             ->placeholder('Ej: Profesional, amigable, experto...')
                             ->columnSpanFull(),
@@ -161,7 +164,7 @@ class ProjectResource extends Resource
                     ->label('Proyecto'),
 
                 Tables\Columns\TextColumn::make('domain_url')
-                    ->url(fn ($record) => $record->domain_url, true) 
+                    ->url(fn ($record) => $record->domain_url, true)
                     ->color('primary')
                     ->icon('heroicon-m-link')
                     ->label('Sitio Web'),
