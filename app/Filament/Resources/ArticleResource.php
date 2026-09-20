@@ -11,6 +11,7 @@ use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Http;
 use Filament\Notifications\Notification;
+use App\Services\ArticleValidatorService;
 
 class ArticleResource extends Resource
 {
@@ -34,7 +35,10 @@ class ArticleResource extends Resource
                         Forms\Components\Select::make('status')
                             ->options([
                                 'pending' => 'Pendiente',
+                                'draft' => 'Borrador',
                                 'generated' => 'Redactado',
+                                'needs_review' => 'Requiere Revisión',
+                                'approved' => 'Aprobado',
                                 'published' => 'Publicado',
                             ])
                             ->default('pending'),
@@ -65,8 +69,36 @@ class ArticleResource extends Resource
                     ->color(fn (string $state): string => match ($state) {
                         'pending' => 'gray',
                         'generated' => 'warning',
+                        'needs_review' => 'danger',
+                        'approved' => 'info',
                         'published' => 'success',
                         default => 'gray',
+                    }),
+
+                Tables\Columns\TextColumn::make('quality_issues')
+                    ->label('Calidad')
+                    ->badge()
+                    ->state(function (Article $record): string {
+                        $issues = $record->quality_issues;
+                        if ($issues === null) return 'Sin revisar';
+                        $criticals = count($issues['critical'] ?? []);
+                        $warnings = count($issues['warnings'] ?? []);
+                        if ($criticals > 0) return "{$criticals} críticos";
+                        if ($warnings > 0) return "{$warnings} avisos";
+                        return 'OK';
+                    })
+                    ->color(function (Article $record): string {
+                        $issues = $record->quality_issues;
+                        if ($issues === null) return 'gray';
+                        if (!empty($issues['critical'])) return 'danger';
+                        if (!empty($issues['warnings'])) return 'warning';
+                        return 'success';
+                    })
+                    ->tooltip(function (Article $record): ?string {
+                        $issues = $record->quality_issues;
+                        if ($issues === null) return null;
+                        $all = array_merge($issues['critical'] ?? [], $issues['warnings'] ?? []);
+                        return $all === [] ? 'Cumple todas las reglas del prompt' : implode("\n", $all);
                     }),
             ])
             ->actions([
@@ -96,7 +128,7 @@ class ArticleResource extends Resource
                         $address = $project->address ?? 'No especificado';
 
                         try {
-                            $apiKey = env('GEMINI_API_KEY');
+                            $apiKey = config('gemini.api_key');
                             
                             // --- 2. EL PROMPT MAESTRO ---
                            $prompt = "
@@ -165,11 +197,14 @@ class ArticleResource extends Resource
 						";
 
 
-                            $response = Http::withHeaders(['Content-Type' => 'application/json'])
+                            $response = Http::withHeaders([
+        'Content-Type' => 'application/json',
+        'x-goog-api-key' => $apiKey,
+    ])
     ->timeout(120)
-    ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" . $apiKey, [
-        'contents' => [['parts' => [['text' => $prompt]]]], // <--- ¡AQUÍ FALTABA LA COMA!
-        'generationConfig' => [                              // <--- Solo una comilla simple '
+    ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent", [
+        'contents' => [['parts' => [['text' => $prompt]]]],
+        'generationConfig' => [
             'temperature' => 0.5,
             'topP' => 0.9,
             'maxOutputTokens' => 2048
@@ -182,9 +217,13 @@ class ArticleResource extends Resource
 
                             $content = str_replace(['```html', '```'], '', $content);
 
+                            $validator = new ArticleValidatorService();
+                            $quality = $validator->validate($content, $record->keyword, $project->domain_url);
+
                             $record->update([
                                 'content' => $content,
-                                'status' => 'generated'
+                                'quality_issues' => $quality,
+                                'status' => $validator->hasCriticalIssues($quality) ? 'needs_review' : 'generated',
                             ]);
 
                             Notification::make()->title('¡Artículo Creado!')->body('Se incluyeron los datos de contacto correctos.')->success()->send();
@@ -194,7 +233,21 @@ class ArticleResource extends Resource
                         }
                     }),
 
-                // 2. BOTONES ESTÁNDAR
+                // 2. APROBACIÓN MANUAL
+                Tables\Actions\Action::make('approve')
+                    ->label('Aprobar')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->visible(fn (Article $record): bool => in_array($record->status, ['generated', 'needs_review']))
+                    ->requiresConfirmation()
+                    ->modalHeading('Aprobar Artículo')
+                    ->modalDescription('El artículo se publicará automáticamente cuando llegue su fecha programada.')
+                    ->action(function (Article $record) {
+                        $record->update(['status' => 'approved']);
+                        Notification::make()->title('Artículo aprobado')->success()->send();
+                    }),
+
+                // 3. BOTONES ESTÁNDAR
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
             ])

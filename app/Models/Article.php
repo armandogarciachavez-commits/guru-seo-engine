@@ -15,20 +15,21 @@ class Article extends Model
         'project_id',
         'title',
         'slug',
-        'keyword',        // <--- FALTABA ESTE (Vital para la IA)
-        'scheduled_date', // <--- FALTABA ESTE (Vital para el calendario)
-        'content',        // <--- Este ya estaba, ¡bien!
-        'image_url',
+        'keyword',
+        'scheduled_date',
+        'content',
+        'html_content',
+        'competitor_data',
         'status',
-        'is_published',
-        'published_at',
-		'thumbnail_url',
+        'published_url',
+        'quality_issues',
+        'thumbnail_url',
     ];
 
     protected $casts = [
-        'is_published' => 'boolean',
-        'published_at' => 'datetime',
-        'scheduled_date' => 'date', // <--- Recomendado castear esto como fecha
+        'scheduled_date' => 'date',
+        'competitor_data' => 'array',
+        'quality_issues' => 'array',
     ];
 
     protected static function boot()
@@ -38,6 +39,16 @@ class Article extends Model
         static::creating(function ($article) {
             if (empty($article->slug)) {
                 $article->slug = Str::slug($article->title);
+            }
+        });
+
+        // Mantiene sincronizadas las columnas 'content' y 'html_content':
+        // distintos flujos escriben/leen una u otra, ambas contienen el HTML del artículo.
+        static::saving(function ($article) {
+            if ($article->isDirty('content') && ! $article->isDirty('html_content')) {
+                $article->html_content = $article->content;
+            } elseif ($article->isDirty('html_content') && ! $article->isDirty('content')) {
+                $article->content = $article->html_content;
             }
         });
     }

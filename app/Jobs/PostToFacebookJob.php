@@ -46,12 +46,8 @@ class PostToFacebookJob implements ShouldQueue
 
         // 4. Construir el Enlace
         // Facebook necesita la URL para generar la tarjeta clicable
-        // Asumimos que la URL base del proyecto es donde vive el blog.
-        // Ej: https://elviaconsulting.com
-        $link = rtrim($project->domain_url, '/');
-
-        // OJO: Si tienes una estructura específica en WordPress, ajústalo aquí.
-        // Ej: $link = $project->domain_url . '/blog'; 
+        // Usamos la URL real del post en WordPress si existe; si no, el dominio del proyecto.
+        $link = $this->article->published_url ?: rtrim($project->domain_url, '/');
 
         // 5. Enviar a Facebook (Graph API)
         // Usamos el endpoint /feed porque es solo texto+link

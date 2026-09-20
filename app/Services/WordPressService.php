@@ -39,6 +39,12 @@ class WordPressService
 
             if ($response->successful()) {
                 echo "✅ [EXITO] Post creado con ID: " . $response->json()['id'] . "\n";
+
+                $postUrl = $response->json()['link'] ?? null;
+                if ($postUrl) {
+                    $article->update(['published_url' => $postUrl]);
+                }
+
                 return $response->json();
             } else {
                 echo "❌ [ERROR] El servidor respondió: " . $response->body() . "\n";

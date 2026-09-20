@@ -9,7 +9,7 @@ class PexelsService
 {
     public static function search($query)
     {
-        $apiKey = env('PEXELS_API_KEY');
+        $apiKey = config('services.pexels.key');
 
         // Si no hay API Key, devolvemos NULL (el sistema usará una por defecto después)
         if (!$apiKey) {
