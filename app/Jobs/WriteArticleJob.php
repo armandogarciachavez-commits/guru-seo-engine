@@ -3,23 +3,24 @@
 namespace App\Jobs;
 
 use App\Models\Article;
-use App\Models\Project;
+use App\Services\ArticleGeneratorService;
 use App\Services\ArticleValidatorService;
+use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
-use Carbon\Carbon; // Importamos Carbon para manejar fechas
+use Illuminate\Support\Facades\Log; // Importamos Carbon para manejar fechas
 
 class WriteArticleJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $article;
-    public $timeout = 600; 
+
+    public $timeout = 600;
 
     public function __construct(Article $article)
     {
@@ -28,12 +29,13 @@ class WriteArticleJob implements ShouldQueue
 
     public function handle(): void
     {
-        Log::info("REDACCIÓN JOB: Iniciando para artículo ID: " . $this->article->id);
+        Log::info('REDACCIÓN JOB: Iniciando para artículo ID: '.$this->article->id);
 
         $project = $this->article->project;
-        
-        if (!$project) {
-            Log::error("REDACCIÓN ERROR: El artículo no tiene proyecto asociado.");
+
+        if (! $project) {
+            Log::error('REDACCIÓN ERROR: El artículo no tiene proyecto asociado.');
+
             return;
         }
 
@@ -45,7 +47,7 @@ class WriteArticleJob implements ShouldQueue
         try {
             $apiKey = config('gemini.api_key');
 
-            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+            $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
             $prompt = "
                 ROL: Redactor SEO Experto.
@@ -60,19 +62,20 @@ class WriteArticleJob implements ShouldQueue
             ";
 
             $response = Http::withHeaders([
-                    'Content-Type' => 'application/json',
-                    'x-goog-api-key' => $apiKey,
-                ])
+                'Content-Type' => 'application/json',
+                'x-goog-api-key' => $apiKey,
+            ])
                 ->timeout(180)
-                ->post($url, [ 
+                ->post($url, [
                     'contents' => [['parts' => [['text' => $prompt]]]],
-                    'generationConfig' => ['temperature' => 0.7]
+                    'generationConfig' => ['temperature' => 0.7],
                 ]);
 
             $content = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? null;
 
-            if (!$content) {
-                Log::error("REDACCIÓN FALLIDA: Gemini devolvió vacío.");
+            if (! $content) {
+                Log::error('REDACCIÓN FALLIDA: Gemini devolvió vacío.');
+
                 return;
             }
 
@@ -81,8 +84,12 @@ class WriteArticleJob implements ShouldQueue
             $content = trim($content);
             $content = mb_convert_encoding($content, 'UTF-8', 'UTF-8');
 
+            // --- IMAGEN DESTACADA (Pexels) ---
+            $generatorService = new ArticleGeneratorService;
+            $imageUrl = $generatorService->fetchImage($project, $this->article->keyword, $this->article->title);
+
             // --- CONTROL DE CALIDAD ---
-            $validator = new ArticleValidatorService();
+            $validator = new ArticleValidatorService;
             $quality = $validator->validate($content, $this->article->keyword, $project->domain_url);
 
             // --- LÓGICA DE PUBLICACIÓN AUTOMÁTICA ---
@@ -99,6 +106,7 @@ class WriteArticleJob implements ShouldQueue
 
             $this->article->update([
                 'content' => $content,
+                'thumbnail_url' => $imageUrl,
                 'status' => $status,
                 'quality_issues' => $quality,
             ]);
@@ -106,7 +114,7 @@ class WriteArticleJob implements ShouldQueue
             Log::info("REDACCIÓN ÉXITO: Artículo ID {$this->article->id} guardado como {$status}.");
 
         } catch (\Exception $e) {
-            Log::error("REDACCIÓN ERROR CRÍTICO: " . $e->getMessage());
+            Log::error('REDACCIÓN ERROR CRÍTICO: '.$e->getMessage());
         }
     }
 }
