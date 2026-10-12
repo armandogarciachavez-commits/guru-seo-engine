@@ -46,7 +46,7 @@ class GenerateRadiographyJob implements ShouldQueue
         $ciudad = $this->project->target_city ?? 'Local';
 
         try {
-            $apiKey = env('GEMINI_API_KEY');
+            $apiKey = config('gemini.api_key');
             
             // 2. EL PROMPT MAESTRO (Tu prompt original)
             $prompt = "
@@ -70,9 +70,12 @@ class GenerateRadiographyJob implements ShouldQueue
             ";
 
             // 3. Llamada a Gemini
-            $response = Http::withHeaders(['Content-Type' => 'application/json'])
+            $response = Http::withHeaders([
+                    'Content-Type' => 'application/json',
+                    'x-goog-api-key' => $apiKey,
+                ])
                 ->timeout(120)
-                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" . $apiKey, [
+                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent", [
                     'contents' => [['parts' => [['text' => $prompt]]]],
                     'generationConfig' => ['temperature' => 0.5]
                 ]);

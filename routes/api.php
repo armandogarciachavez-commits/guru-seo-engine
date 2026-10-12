@@ -18,8 +18,10 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 
 // Ruta del Widget (Existente)
-Route::get('/v1/widget/{uuid}', [WidgetContentController::class, 'getArticles']);
+Route::get('/v1/widget/{uuid}', [WidgetContentController::class, 'getArticles'])
+    ->middleware('throttle:60,1');
 
 // ✅ RUTA DEL PLUGIN WORDPRESS
 // Esta línea conecta la petición con tu nuevo controlador
-Route::get('/articles', [PublicArticleController::class, 'index']);
+Route::get('/articles', [PublicArticleController::class, 'index'])
+    ->middleware('throttle:60,1');

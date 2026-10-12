@@ -38,7 +38,10 @@ class ArticlesRelationManager extends RelationManager
                 Forms\Components\Select::make('status')
                     ->options([
                         'pending' => 'Pendiente',
+                        'draft' => 'Borrador',
                         'generated' => 'Redactado',
+                        'needs_review' => 'Requiere Revisión',
+                        'approved' => 'Aprobado',
                         'published' => 'Publicado',
                     ])
                     ->default('pending'),
@@ -71,8 +74,36 @@ class ArticlesRelationManager extends RelationManager
                     ->color(fn (string $state): string => match ($state) {
                         'pending' => 'gray',
                         'generated' => 'warning',
+                        'needs_review' => 'danger',
+                        'approved' => 'info',
                         'published' => 'success',
                         default => 'gray',
+                    }),
+
+                Tables\Columns\TextColumn::make('quality_issues')
+                    ->label('Calidad')
+                    ->badge()
+                    ->state(function (Article $record): string {
+                        $issues = $record->quality_issues;
+                        if ($issues === null) return 'Sin revisar';
+                        $criticals = count($issues['critical'] ?? []);
+                        $warnings = count($issues['warnings'] ?? []);
+                        if ($criticals > 0) return "{$criticals} críticos";
+                        if ($warnings > 0) return "{$warnings} avisos";
+                        return 'OK';
+                    })
+                    ->color(function (Article $record): string {
+                        $issues = $record->quality_issues;
+                        if ($issues === null) return 'gray';
+                        if (!empty($issues['critical'])) return 'danger';
+                        if (!empty($issues['warnings'])) return 'warning';
+                        return 'success';
+                    })
+                    ->tooltip(function (Article $record): ?string {
+                        $issues = $record->quality_issues;
+                        if ($issues === null) return null;
+                        $all = array_merge($issues['critical'] ?? [], $issues['warnings'] ?? []);
+                        return $all === [] ? 'Cumple todas las reglas del prompt' : implode("\n", $all);
                     }),
             ])
             ->headerActions([
@@ -89,11 +120,12 @@ class ArticlesRelationManager extends RelationManager
                     ->form([
                         Forms\Components\Select::make('frequency')
                             ->label('Frecuencia')
-                            ->options(['2'=>'2/sem', '3'=>'3/sem', '5'=>'Diario'])
-                            ->default('3')
-                            ->required(),
+                            ->options(['1'=>'1/semana', '2'=>'2/sem', '3'=>'3/sem', '5'=>'Diario'])
+                            ->default('1')
+                            ->required()
+                            ->helperText('1/semana publica siempre el mismo día de la semana que la fecha de inicio.'),
                         Forms\Components\DatePicker::make('start_date')
-                            ->label('Inicio')
+                            ->label('Inicio (fecha del primer artículo)')
                             ->default(now()->addDay())
                             ->required(),
                     ])
@@ -147,6 +179,19 @@ class ArticlesRelationManager extends RelationManager
                         } catch (\Exception $e) {
                             Notification::make()->title('Error')->body($e->getMessage())->danger()->send();
                         }
+                    }),
+
+                Tables\Actions\Action::make('approve')
+                    ->label('Aprobar')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->visible(fn (Article $record): bool => in_array($record->status, ['generated', 'needs_review']))
+                    ->requiresConfirmation()
+                    ->modalHeading('Aprobar Artículo')
+                    ->modalDescription('El artículo se publicará automáticamente cuando llegue su fecha programada.')
+                    ->action(function (Article $record) {
+                        $record->update(['status' => 'approved']);
+                        Notification::make()->title('Artículo aprobado')->success()->send();
                     }),
 
                 Tables\Actions\EditAction::make(),

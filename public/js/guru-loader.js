@@ -5,6 +5,7 @@
         return;
     }
 
+    // data-project-id debe ser el UUID público del proyecto
     const projectId = container.getAttribute('data-project-id');
     if (!projectId) {
         console.error('Guru SEO: data-project-id attribute missing on container.');
@@ -39,7 +40,7 @@
         console.warn('Guru SEO: Could not determine base URL from script tag. defaulting to empty string (relative).');
     }
 
-    const apiUrl = `${baseUrl}/api/feed/${projectId}`;
+    const apiUrl = `${baseUrl}/api/v1/widget/${projectId}`;
 
     fetch(apiUrl)
         .then(response => {
@@ -48,7 +49,8 @@
             }
             return response.json();
         })
-        .then(articles => {
+        .then(data => {
+            const articles = data.articles || [];
             if (articles.length === 0) {
                 container.innerHTML = '<p>No latest articles found.</p>';
                 return;
@@ -63,7 +65,7 @@
                 html += `
                     <div style="border: 1px solid #ddd; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
                         <h3 style="margin-top: 0;">${article.title}</h3>
-                        <p style="color: #666; font-size: 0.9em;">${new Date(article.created_at).toLocaleDateString()}</p>
+                        <p style="color: #666; font-size: 0.9em;">${new Date(article.scheduled_date || article.created_at).toLocaleDateString()}</p>
                         <a href="#" style="text-decoration: none; color: #3490dc; font-weight: bold;">Read More &rarr;</a>
                     </div>
                 `;

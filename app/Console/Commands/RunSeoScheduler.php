@@ -6,6 +6,7 @@ use Illuminate\Console\Command;
 use App\Models\Project;
 use App\Models\Article;
 use App\Services\WordPressService;
+use App\Jobs\PostToFacebookJob;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
@@ -18,7 +19,7 @@ class RunSeoScheduler extends Command
     {
         $this->info('🚀 Iniciando Motor Multi-Cliente (Gemini 2.0)...');
 
-        $apiKey = env('GEMINI_API_KEY');
+        $apiKey = config('gemini.api_key');
         if (empty($apiKey)) {
             $this->error('🚨 ERROR: Falta GEMINI_API_KEY en .env');
             return;
@@ -64,10 +65,10 @@ class RunSeoScheduler extends Command
             }";
 
             // LLAMADA A GEMINI 2.0 FLASH
-            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}";
+            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
             try {
-                $response = Http::post($url, [
+                $response = Http::withHeaders(['x-goog-api-key' => $apiKey])->post($url, [
                     'contents' => [['parts' => [['text' => $prompt]]]]
                 ]);
             } catch (\Exception $e) {
@@ -103,11 +104,15 @@ class RunSeoScheduler extends Command
                 // Publicar
                 if ($project->integration_type === 'wordpress') {
                     $wpService->publish($article, $project);
-                    
-                    // Reprogramar para mañana
-                    $project->update(['next_run_at' => now()->addDay()]);
-                    $this->info("📅 Próxima ejecución: Mañana");
                 }
+
+                // Compartir en Facebook (el job no hace nada si el proyecto no tiene FB configurado)
+                PostToFacebookJob::dispatch($article->fresh())->onConnection('database');
+
+                // Reprogramar para mañana (todos los tipos de integración,
+                // si no, el proyecto se procesa en cada corrida y genera artículos sin límite)
+                $project->update(['next_run_at' => now()->addDay()]);
+                $this->info("📅 Próxima ejecución: Mañana");
 
             } else {
                 $this->error("❌ Error Google: " . $response->body());

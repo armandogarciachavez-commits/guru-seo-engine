@@ -17,11 +17,30 @@ class Project extends Model
         'user_id',
         'name',
         'domain_url',
+        'target_language',
         'target_city',
         'brand_voice',
         'seo_strategy',
         'uuid', // <--- ¡CRÍTICO!
 		'thumbnail_url',
+
+        // --- CONFIGURACIÓN DEL MOTOR SEO ---
+        'cms_type',
+        'posting_frequency',
+        'integration_type',
+        'next_run_at',
+        'niche',
+        'business_name',
+        'business_context',
+        'target_location',
+        'target_audience',
+        'key_services',
+        'cta_instruction',
+
+        // --- INTEGRACIÓN WORDPRESS ---
+        'wp_api_url',
+        'wp_username',
+        'wp_application_password',
 
         // --- 🟢 NUEVOS CAMPOS DE CONTACTO (SOLUCIÓN A TU PROBLEMA) ---
         'phone',
@@ -31,6 +50,15 @@ class Project extends Model
         // --- 🔵 NUEVOS CAMPOS DE FACEBOOK (PARA LO QUE SIGUE) ---
         'facebook_page_id',
         'facebook_access_token',
+
+        'auto_publish',
+    ];
+
+    protected $casts = [
+        'auto_publish' => 'boolean',
+        // Credenciales de clientes cifradas en reposo
+        'facebook_access_token' => 'encrypted',
+        'wp_application_password' => 'encrypted',
     ];
 
     /**

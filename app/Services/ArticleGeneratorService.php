@@ -4,23 +4,18 @@ namespace App\Services;
 
 use App\Models\Project;
 use Gemini\Laravel\Facades\Gemini;
-use Illuminate\Support\Str;
+
 // 👇 IMPORTANTE: Importamos nuestro buscador de fotos
-use App\Services\PexelsService; 
 
 class ArticleGeneratorService
 {
     /**
      * Genera un artículo SEO optimizado usando la identidad de marca del proyecto.
-     *
-     * @param Project $project
-     * @param string|null $keyword
-     * @return string
      */
     public function generate(Project $project, ?string $keyword = null): string
     {
         // 1. Si no hay keyword, usamos el servicio principal como tema
-        $topic = $keyword ?? $project->key_services ?? 'Servicios de ' . $project->business_name;
+        $topic = $keyword ?? $project->key_services ?? 'Servicios de '.$project->business_name;
 
         // 2. Construimos el Prompt (Las instrucciones para la IA)
         $prompt = $this->buildPrompt($project, $topic);
@@ -28,42 +23,42 @@ class ArticleGeneratorService
         try {
             // 3. Llamamos a Gemini (Modelo Flash para rapidez y calidad)
             $result = Gemini::generativeModel('gemini-2.0-flash')->generateContent($prompt);
-            
+
             // Obtenemos el texto crudo
             $rawContent = $result->text();
 
             // --- LIMPIEZA AUTOMÁTICA ---
             // Eliminamos las etiquetas de código que la IA suele poner (```html y ```)
             $cleanContent = str_replace(['```html', '```'], '', $rawContent);
-            
+
             // Devolvemos el contenido limpio
             return $cleanContent;
 
         } catch (\Exception $e) {
             // Si falla, devolvemos un mensaje de error limpio para que no rompa la web
-            return "<h1>Error al generar contenido</h1><p>Ocurrió un error conectando con la IA: " . $e->getMessage() . "</p>";
+            return '<h1>Error al generar contenido</h1><p>Ocurrió un error conectando con la IA: '.$e->getMessage().'</p>';
         }
     }
 
     /**
-     * 📸 NUEVO MÉTODO: Busca una imagen relacionada en Pexels.
-     * Usa la lógica de prioridad: Nicho > Estrategia > Ciudad > General.
+     * 📸 Busca una imagen relacionada en Pexels.
+     * Prioridad: keyword del artículo > título > Nicho > Estrategia > Ciudad > General.
      */
-    public function fetchImage(Project $project): ?string
+    public function fetchImage(Project $project, ?string $keyword = null, ?string $title = null): ?string
     {
-        // 1. Decidir qué palabra clave buscar
-        // Si tiene 'niche' (Ej: Dentista), es lo mejor. 
-        // Si no, usamos la estrategia SEO o la ciudad.
-        $searchQuery = $project->niche 
-                    ?? $project->seo_strategy 
-                    ?? $project->target_city 
+        // 1. Decidir qué buscar: lo más específico primero (keyword/título del artículo)
+        $searchQuery = $keyword
+                    ?? $title
+                    ?? $project->niche
+                    ?? $project->seo_strategy
+                    ?? $project->target_city
                     ?? 'Negocios';
 
         // 2. Llamar al servicio de Pexels
         // (Si el servicio devuelve null, usamos una imagen de respaldo aquí mismo)
         $imageUrl = PexelsService::search($searchQuery);
 
-        if (!$imageUrl) {
+        if (! $imageUrl) {
             // Imagen de respaldo segura (Oficina genérica)
             return 'https://images.pexels.com/photos/3183150/pexels-photo-3183150.jpeg';
         }
@@ -84,12 +79,18 @@ class ArticleGeneratorService
         $services = $project->key_services ?? 'Servicios generales';
         $cta = $project->cta_instruction ?? 'Contáctanos para más información';
         $lang = $project->target_language ?? 'es-MX';
-        
+
         // Agregamos los datos de contacto al prompt para que la IA los use si quiere
-        $contactInfo = "";
-        if ($project->phone) $contactInfo .= "Tel: {$project->phone}. ";
-        if ($project->email) $contactInfo .= "Email: {$project->email}. ";
-        if ($project->address) $contactInfo .= "Dirección: {$project->address}. ";
+        $contactInfo = '';
+        if ($project->phone) {
+            $contactInfo .= "Tel: {$project->phone}. ";
+        }
+        if ($project->email) {
+            $contactInfo .= "Email: {$project->email}. ";
+        }
+        if ($project->address) {
+            $contactInfo .= "Dirección: {$project->address}. ";
+        }
 
         return <<<EOT
 Actúa como un Redactor SEO Experto y Copywriter Senior especializado en {$location}.
