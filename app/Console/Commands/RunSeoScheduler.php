@@ -7,7 +7,6 @@ use App\Models\Project;
 use App\Models\Article;
 use App\Services\WordPressService;
 use App\Jobs\PostToFacebookJob;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
 class RunSeoScheduler extends Command

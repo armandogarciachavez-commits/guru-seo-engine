@@ -162,6 +162,15 @@ class ProjectResource extends Resource
                             ->label('Monitoreo automático activo')
                             ->helperText('Si está activo, el monitor semanal analizará esta propiedad y enviará el reporte.')
                             ->default(false),
+
+                        Forms\Components\TextInput::make('gsc_min_impressions')
+                            ->label('Impresiones mínimas por keyword')
+                            ->numeric()
+                            ->integer()
+                            ->minValue(1)
+                            ->nullable()
+                            ->placeholder((string) \App\Services\QuickWinDetectorService::DEFAULT_MIN_IMPRESSIONS)
+                            ->helperText('Umbral del detector de quick-wins en la ventana de 28 días. Vacío = '.\App\Services\QuickWinDetectorService::DEFAULT_MIN_IMPRESSIONS.'. Súbelo en sitios con mucho tráfico para evitar ruido.'),
                     ])
                     ->collapsible()
                     ->collapsed(),

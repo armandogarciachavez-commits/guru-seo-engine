@@ -56,10 +56,12 @@ class Project extends Model
         // --- 🟣 MONITOREO SEO (GOOGLE SEARCH CONSOLE) ---
         'gsc_property',
         'gsc_enabled',
+        'gsc_min_impressions',
     ];
 
     protected $casts = [
         'auto_publish' => 'boolean',
+        'gsc_min_impressions' => 'integer',
         // Credenciales de clientes cifradas en reposo
         'facebook_access_token' => 'encrypted',
         'wp_application_password' => 'encrypted',

@@ -23,9 +23,13 @@ class SyncSearchConsoleJob implements ShouldQueue
 
     public int $timeout = 300;
 
-    public function __construct(public Project $project)
-    {
-    }
+    /** Tope de filas por sincronización (se paginan de 25 000 en 25 000). */
+    public const MAX_ROWS = 25000;
+
+    /** Largo de las columnas query/page en gsc_metrics. */
+    public const MAX_TEXT = 500;
+
+    public function __construct(public Project $project) {}
 
     public function handle(): void
     {
@@ -33,26 +37,29 @@ class SyncSearchConsoleJob implements ShouldQueue
 
         if (empty($project->gsc_property)) {
             Log::warning("[GSC Sync] Proyecto {$project->id} sin gsc_property; se omite.");
+
             return;
         }
 
         try {
-            $gsc = new SearchConsoleService();
+            $gsc = app(SearchConsoleService::class);
             $window = SearchConsoleService::defaultWindow();
             $rows = $gsc->fetchSearchAnalytics(
                 $project->gsc_property,
                 $window['from'],
                 $window['to'],
                 ['query', 'page'],
-                5000
+                self::MAX_ROWS
             );
         } catch (\Throwable $e) {
-            Log::error("[GSC Sync] Proyecto {$project->id} ({$project->gsc_property}): " . $e->getMessage());
+            Log::error("[GSC Sync] Proyecto {$project->id} ({$project->gsc_property}): ".$e->getMessage());
+
             return;
         }
 
         if (empty($rows)) {
             Log::info("[GSC Sync] Proyecto {$project->id}: sin datos en la ventana {$window['from']}..{$window['to']}.");
+
             return;
         }
 
@@ -65,8 +72,8 @@ class SyncSearchConsoleJob implements ShouldQueue
                 'project_id' => $project->id,
                 'window_from' => $window['from'],
                 'window_to' => $window['to'],
-                'query' => $r['keys'][0] ?? null,
-                'page' => $r['keys'][1] ?? null,
+                'query' => $this->limit($r['keys'][0] ?? null),
+                'page' => $this->limit($r['keys'][1] ?? null),
                 'clicks' => $r['clicks'],
                 'impressions' => $r['impressions'],
                 'ctr' => $r['ctr'],
@@ -82,6 +89,11 @@ class SyncSearchConsoleJob implements ShouldQueue
             GscMetric::insert($chunk);
         }
 
-        Log::info("[GSC Sync] Proyecto {$project->id}: " . count($batch) . " filas guardadas (lote {$capturedAt}).");
+        Log::info("[GSC Sync] Proyecto {$project->id}: ".count($batch)." filas guardadas (lote {$capturedAt}).");
+    }
+
+    protected function limit(?string $value): ?string
+    {
+        return $value === null ? null : mb_substr($value, 0, self::MAX_TEXT);
     }
 }

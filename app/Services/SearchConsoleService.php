@@ -17,20 +17,28 @@ use Illuminate\Support\Facades\Log;
  */
 class SearchConsoleService
 {
+    public const MAX_ROWS_PER_REQUEST = 25000;
+
     protected SearchConsole $service;
 
-    public function __construct()
+    public function __construct(?SearchConsole $service = null)
     {
+        if ($service) {
+            $this->service = $service;
+
+            return;
+        }
+
         $jsonPath = config('services.google.service_account_json');
 
         if (! $jsonPath || ! is_file($jsonPath)) {
             throw new \RuntimeException(
                 "No se encontró el JSON del service account de Google en: {$jsonPath}. "
-                . "Configura GOOGLE_SERVICE_ACCOUNT_JSON o coloca el archivo en storage/app/google/service-account.json."
+                .'Configura GOOGLE_SERVICE_ACCOUNT_JSON o coloca el archivo en storage/app/google/service-account.json.'
             );
         }
 
-        $client = new GoogleClient();
+        $client = new GoogleClient;
         $client->setAuthConfig($jsonPath);
         $client->setScopes([SearchConsole::WEBMASTERS_READONLY]);
         $client->setApplicationName('Guru SEO Monitor');
@@ -66,29 +74,45 @@ class SearchConsoleService
         array $dimensions = ['query', 'page'],
         int $rowLimit = 5000
     ): array {
-        $request = new SearchAnalyticsQueryRequest();
-        $request->setStartDate($from);
-        $request->setEndDate($to);
-        $request->setDimensions($dimensions);
-        $request->setRowLimit($rowLimit);
-        $request->setDataState('final'); // solo datos consolidados
-
-        try {
-            $response = $this->service->searchanalytics->query($property, $request);
-        } catch (\Throwable $e) {
-            Log::error("[GSC] Error consultando {$property}: " . $e->getMessage());
-            throw $e;
-        }
-
         $rows = [];
-        foreach ($response->getRows() ?? [] as $row) {
-            $rows[] = [
-                'keys' => $row->getKeys(),
-                'clicks' => (int) $row->getClicks(),
-                'impressions' => (int) $row->getImpressions(),
-                'ctr' => (float) $row->getCtr(),
-                'position' => (float) $row->getPosition(),
-            ];
+        $startRow = 0;
+
+        // GSC devuelve máx. 25 000 filas por request ordenadas por clics desc;
+        // se pagina con startRow hasta $rowLimit para no perder las de pocos clics.
+        while ($startRow < $rowLimit) {
+            $pageSize = min(self::MAX_ROWS_PER_REQUEST, $rowLimit - $startRow);
+
+            $request = new SearchAnalyticsQueryRequest;
+            $request->setStartDate($from);
+            $request->setEndDate($to);
+            $request->setDimensions($dimensions);
+            $request->setRowLimit($pageSize);
+            $request->setStartRow($startRow);
+            $request->setDataState('final'); // solo datos consolidados
+
+            try {
+                $response = $this->service->searchanalytics->query($property, $request);
+            } catch (\Throwable $e) {
+                Log::error("[GSC] Error consultando {$property}: ".$e->getMessage());
+                throw $e;
+            }
+
+            $pageRows = $response->getRows() ?? [];
+            foreach ($pageRows as $row) {
+                $rows[] = [
+                    'keys' => $row->getKeys(),
+                    'clicks' => (int) $row->getClicks(),
+                    'impressions' => (int) $row->getImpressions(),
+                    'ctr' => (float) $row->getCtr(),
+                    'position' => (float) $row->getPosition(),
+                ];
+            }
+
+            if (count($pageRows) < $pageSize) {
+                break;
+            }
+
+            $startRow += $pageSize;
         }
 
         return $rows;

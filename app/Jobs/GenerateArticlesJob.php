@@ -12,7 +12,6 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -66,6 +65,7 @@ class GenerateArticlesJob implements ShouldQueue
             $plan = (new \App\Services\OpenRouterService)->generateJson($prompt, [
                 'system' => 'Responde exclusivamente con JSON válido.',
                 'temperature' => 0.5,
+                'expect' => 'list',
             ]);
 
             if (! is_array($plan) || empty($plan)) {

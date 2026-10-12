@@ -8,11 +8,6 @@ class GeminiContentService
 {
     /**
      * Generate an article based on project settings and competitor data.
-     *
-     * @param Project $project
-     * @param string $keyword
-     * @param array $competitorData
-     * @return string
      */
     public function generateArticle(Project $project, string $keyword, array $competitorData): string
     {
@@ -23,16 +18,15 @@ class GeminiContentService
             'temperature' => 0.7,
         ]);
 
-        return $content ?? '';
+        if (empty($content)) {
+            throw new \RuntimeException('La IA no devolvió contenido. Reintenta o revisa OPENROUTER_API_KEY.');
+        }
+
+        return $content;
     }
 
     /**
      * Construct the prompt for Gemini.
-     *
-     * @param Project $project
-     * @param string $keyword
-     * @param array $competitorData
-     * @return string
      */
     private function buildPrompt(Project $project, string $keyword, array $competitorData): string
     {
