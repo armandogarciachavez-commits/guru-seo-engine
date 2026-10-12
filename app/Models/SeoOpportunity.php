@@ -11,8 +11,11 @@ class SeoOpportunity extends Model
     use HasFactory;
 
     public const STATUS_NEW = 'new';
+
     public const STATUS_IN_PROGRESS = 'in_progress';
+
     public const STATUS_APPLIED = 'applied';
+
     public const STATUS_DISMISSED = 'dismissed';
 
     protected $fillable = [
@@ -44,6 +47,12 @@ class SeoOpportunity extends Model
         'window_to' => 'date',
         'detected_at' => 'datetime',
     ];
+
+    /** Oportunidades aún accionables (ni aplicadas ni descartadas). */
+    public function scopeOpen($query)
+    {
+        return $query->whereIn('status', [self::STATUS_NEW, self::STATUS_IN_PROGRESS]);
+    }
 
     public function project(): BelongsTo
     {

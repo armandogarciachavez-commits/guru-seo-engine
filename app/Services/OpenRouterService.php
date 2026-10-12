@@ -32,6 +32,7 @@ class OpenRouterService
 
         if (empty($apiKey)) {
             Log::error('[OpenRouter] OPENROUTER_API_KEY no está configurada.');
+
             return null;
         }
 
@@ -52,7 +53,7 @@ class OpenRouterService
 
         try {
             $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $apiKey,
+                'Authorization' => 'Bearer '.$apiKey,
                 'HTTP-Referer' => config('app.url'),
                 'X-Title' => config('app.name', 'Guru SEO'),
                 'Content-Type' => 'application/json',
@@ -61,14 +62,20 @@ class OpenRouterService
                 ->post($this->endpoint, $payload);
 
             if ($response->failed()) {
-                Log::error('[OpenRouter] HTTP ' . $response->status() . ': ' . $response->body());
+                Log::error('[OpenRouter] HTTP '.$response->status().': '.$response->body());
+
                 return null;
             }
 
             $content = data_get($response->json(), 'choices.0.message.content');
 
+            if (data_get($response->json(), 'choices.0.finish_reason') === 'length') {
+                Log::warning('[OpenRouter] Respuesta truncada por límite de tokens (finish_reason=length).');
+            }
+
             if (empty($content)) {
-                Log::error('[OpenRouter] Respuesta vacía: ' . $response->body());
+                Log::error('[OpenRouter] Respuesta vacía: '.$response->body());
+
                 return null;
             }
 
@@ -76,7 +83,8 @@ class OpenRouterService
 
             return trim($content);
         } catch (\Throwable $e) {
-            Log::error('[OpenRouter] Error: ' . $e->getMessage());
+            Log::error('[OpenRouter] Error: '.$e->getMessage());
+
             return null;
         }
     }
@@ -84,6 +92,9 @@ class OpenRouterService
     /**
      * Igual que generate() pero devuelve un array decodificado desde un JSON
      * embebido en la respuesta (tolerante a ```json y texto alrededor).
+     *
+     * $opts['expect']: 'list' garantiza un arreglo de elementos (desenvuelve
+     * {"x":[...]} y un objeto suelto {...} → [{...}]); 'object' prioriza {...}.
      */
     public function generateJson(string $prompt, array $opts = []): ?array
     {
@@ -92,15 +103,35 @@ class OpenRouterService
             return null;
         }
 
+        $decoded = $this->extractJson($raw, $opts['expect'] ?? null);
+
+        if ($decoded !== null && ($opts['expect'] ?? null) === 'list') {
+            return $this->asList($decoded);
+        }
+
+        return $decoded;
+    }
+
+    public function extractJson(string $raw, ?string $expect = null): ?array
+    {
         $clean = str_replace(['```json', '```'], '', $raw);
 
-        // Intento como objeto {...} o arreglo [...], lo que aparezca.
-        foreach ([['{', '}'], ['[', ']']] as [$open, $close]) {
+        $pairs = [['{', '}'], ['[', ']']];
+        if ($expect === 'list') {
+            $pairs = [['[', ']'], ['{', '}']];
+        } elseif ($expect === null) {
+            $obj = strpos($clean, '{');
+            $arr = strpos($clean, '[');
+            if ($arr !== false && ($obj === false || $arr < $obj)) {
+                $pairs = [['[', ']'], ['{', '}']];
+            }
+        }
+
+        foreach ($pairs as [$open, $close]) {
             $start = strpos($clean, $open);
             $end = strrpos($clean, $close);
             if ($start !== false && $end !== false && $end > $start) {
-                $slice = substr($clean, $start, $end - $start + 1);
-                $decoded = json_decode($slice, true);
+                $decoded = json_decode(substr($clean, $start, $end - $start + 1), true);
                 if (is_array($decoded)) {
                     return $decoded;
                 }
@@ -108,5 +139,18 @@ class OpenRouterService
         }
 
         return null;
+    }
+
+    protected function asList(array $data): array
+    {
+        if (array_is_list($data)) {
+            return $data;
+        }
+
+        if (count($data) === 1 && is_array(reset($data)) && array_is_list(reset($data))) {
+            return reset($data);
+        }
+
+        return [$data];
     }
 }

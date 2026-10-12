@@ -16,9 +16,13 @@ class SeoOpportunityResource extends Resource
     protected static ?string $model = SeoOpportunity::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-arrow-trending-up';
+
     protected static ?string $navigationLabel = 'Oportunidades SEO';
+
     protected static ?string $modelLabel = 'Oportunidad SEO';
+
     protected static ?string $pluralModelLabel = 'Oportunidades SEO';
+
     protected static ?int $navigationSort = 3;
 
     public static function table(Table $table): Table
@@ -48,13 +52,13 @@ class SeoOpportunityResource extends Resource
 
                 Tables\Columns\TextColumn::make('ctr')
                     ->label('CTR')
-                    ->formatStateUsing(fn ($state) => round($state * 100, 1) . '%'),
+                    ->formatStateUsing(fn ($state) => round($state * 100, 1).'%'),
 
                 Tables\Columns\TextColumn::make('potential_clicks')
                     ->label('Clics pot.')
                     ->badge()
                     ->color('success')
-                    ->formatStateUsing(fn ($state) => '+' . $state),
+                    ->formatStateUsing(fn ($state) => '+'.$state),
 
                 Tables\Columns\TextColumn::make('priority_score')
                     ->label('Prioridad')
@@ -110,9 +114,9 @@ class SeoOpportunityResource extends Resource
                             <div class='space-y-3 p-2 text-sm'>
                                 <div><span class='font-semibold'>Title:</span><br>{$title}</div>
                                 <div><span class='font-semibold'>Meta description:</span><br>{$meta}</div>
-                                " . ($notes ? "<div class='text-gray-500'><span class='font-semibold'>Por qué:</span> {$notes}</div>" : '') . "
+                                ".($notes ? "<div class='text-gray-500'><span class='font-semibold'>Por qué:</span> {$notes}</div>" : '').'
                             </div>
-                        ");
+                        ');
                     })
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Cerrar'),
@@ -121,6 +125,7 @@ class SeoOpportunityResource extends Resource
                     ->label('Generar con IA')
                     ->icon('heroicon-o-bolt')
                     ->color('warning')
+                    ->visible(fn (SeoOpportunity $record) => in_array($record->status, [SeoOpportunity::STATUS_NEW, SeoOpportunity::STATUS_IN_PROGRESS], true))
                     ->requiresConfirmation()
                     ->action(function (SeoOpportunity $record) {
                         $sug = (new OpportunityOptimizerService)->optimize($record);

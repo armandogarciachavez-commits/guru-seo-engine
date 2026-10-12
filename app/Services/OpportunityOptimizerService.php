@@ -21,6 +21,13 @@ class OpportunityOptimizerService
      */
     public function optimize(SeoOpportunity $opportunity, bool $persist = true): ?array
     {
+        // No pisar la sugerencia de una oportunidad ya aplicada o descartada.
+        if (in_array($opportunity->status, [SeoOpportunity::STATUS_APPLIED, SeoOpportunity::STATUS_DISMISSED], true)) {
+            Log::info('[SEO Optimizer] Oportunidad '.$opportunity->id." en estado {$opportunity->status}; se omite.");
+
+            return null;
+        }
+
         $project = $opportunity->project;
         $business = $project->business_name ?? $project->name ?? 'el negocio';
         $city = $project->target_city ?? $project->target_location ?? '';
@@ -56,7 +63,8 @@ PROMPT;
         ]);
 
         if (! is_array($data) || empty($data['title']) || empty($data['meta_description'])) {
-            Log::error('[SEO Optimizer] Respuesta inválida de la IA para oportunidad ' . $opportunity->id);
+            Log::error('[SEO Optimizer] Respuesta inválida de la IA para oportunidad '.$opportunity->id);
+
             return null;
         }
 
