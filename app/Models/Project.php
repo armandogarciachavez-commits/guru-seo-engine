@@ -93,6 +93,16 @@ class Project extends Model
         return $this->hasMany(CrawlResult::class);
     }
 
+    public function gscMetrics(): HasMany
+    {
+        return $this->hasMany(GscMetric::class);
+    }
+
+    public function seoOpportunities(): HasMany
+    {
+        return $this->hasMany(SeoOpportunity::class);
+    }
+
     // Faltaba esta para saber quién es el dueño
     public function user(): BelongsTo
     {

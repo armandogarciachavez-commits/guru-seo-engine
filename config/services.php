@@ -32,6 +32,16 @@ return [
         'key' => env('PEXELS_API_KEY'),
     ],
 
+    // Google Search Console (monitoreo SEO vía service account).
+    // GOOGLE_SERVICE_ACCOUNT_JSON: ruta al JSON de credenciales del service account.
+    // Por defecto storage/app/google/service-account.json (fuera del docroot público).
+    'google' => [
+        'service_account_json' => env(
+            'GOOGLE_SERVICE_ACCOUNT_JSON',
+            storage_path('app/google/service-account.json')
+        ),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
