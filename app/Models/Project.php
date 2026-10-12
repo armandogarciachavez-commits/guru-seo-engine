@@ -52,6 +52,10 @@ class Project extends Model
         'facebook_access_token',
 
         'auto_publish',
+
+        // --- 🟣 MONITOREO SEO (GOOGLE SEARCH CONSOLE) ---
+        'gsc_property',
+        'gsc_enabled',
     ];
 
     protected $casts = [
