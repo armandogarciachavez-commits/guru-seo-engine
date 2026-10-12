@@ -45,36 +45,26 @@ class WriteArticleJob implements ShouldQueue
         $address = $project->address ?? 'No especificado';
 
         try {
-            $apiKey = config('gemini.api_key');
-
-            $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
-
             $prompt = "
                 ROL: Redactor SEO Experto.
                 TÍTULO: '{$this->article->title}'
                 KEYWORD: '{$this->article->keyword}'
                 DATOS CONTACTO: {$project->name}, {$phone}, {$email}, {$address}.
                 SITIO WEB: {$projectUrl}
-                
+
                 INSTRUCCIÓN: Escribe un artículo de blog completo (800 palabras) optimizado para SEO.
-                FORMATO: HTML limpio (usar <h2>, <h3>, <p>, <ul>, <strong>). 
+                FORMATO: HTML limpio (usar <h2>, <h3>, <p>, <ul>, <strong>).
                 IMPORTANTE: NO uses markdown. Devuelve solo el código HTML.
             ";
 
-            $response = Http::withHeaders([
-                'Content-Type' => 'application/json',
-                'x-goog-api-key' => $apiKey,
-            ])
-                ->timeout(180)
-                ->post($url, [
-                    'contents' => [['parts' => [['text' => $prompt]]]],
-                    'generationConfig' => ['temperature' => 0.7],
-                ]);
-
-            $content = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? null;
+            $content = (new \App\Services\OpenRouterService)->generate($prompt, [
+                'system' => 'Eres un redactor SEO experto. Devuelves solo HTML limpio, sin markdown.',
+                'temperature' => 0.7,
+                'timeout' => 180,
+            ]);
 
             if (! $content) {
-                Log::error('REDACCIÓN FALLIDA: Gemini devolvió vacío.');
+                Log::error('REDACCIÓN FALLIDA: la IA devolvió vacío.');
 
                 return;
             }

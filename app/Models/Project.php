@@ -52,6 +52,10 @@ class Project extends Model
         'facebook_access_token',
 
         'auto_publish',
+
+        // --- 🟣 MONITOREO SEO (GOOGLE SEARCH CONSOLE) ---
+        'gsc_property',
+        'gsc_enabled',
     ];
 
     protected $casts = [
@@ -91,6 +95,16 @@ class Project extends Model
     public function crawlResults(): HasMany
     {
         return $this->hasMany(CrawlResult::class);
+    }
+
+    public function gscMetrics(): HasMany
+    {
+        return $this->hasMany(GscMetric::class);
+    }
+
+    public function seoOpportunities(): HasMany
+    {
+        return $this->hasMany(SeoOpportunity::class);
     }
 
     // Faltaba esta para saber quién es el dueño

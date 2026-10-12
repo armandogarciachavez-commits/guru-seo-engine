@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\Project;
-use Gemini\Laravel\Facades\Gemini;
 
 // 👇 IMPORTANTE: Importamos nuestro buscador de fotos
 
@@ -21,21 +20,20 @@ class ArticleGeneratorService
         $prompt = $this->buildPrompt($project, $topic);
 
         try {
-            // 3. Llamamos a Gemini (Modelo Flash para rapidez y calidad)
-            $result = Gemini::generativeModel('gemini-2.0-flash')->generateContent($prompt);
+            // 3. Llamamos a la IA vía OpenRouter (servicio único del sistema)
+            $rawContent = (new OpenRouterService)->generate($prompt, [
+                'system' => 'Eres un redactor SEO experto. Devuelves HTML limpio, sin markdown ni backticks.',
+                'temperature' => 0.7,
+            ]);
 
-            // Obtenemos el texto crudo
-            $rawContent = $result->text();
+            if (empty($rawContent)) {
+                return '<h1>Error al generar contenido</h1><p>La IA no devolvió contenido.</p>';
+            }
 
-            // --- LIMPIEZA AUTOMÁTICA ---
-            // Eliminamos las etiquetas de código que la IA suele poner (```html y ```)
-            $cleanContent = str_replace(['```html', '```'], '', $rawContent);
-
-            // Devolvemos el contenido limpio
-            return $cleanContent;
+            // Limpieza de etiquetas de código que la IA a veces agrega
+            return str_replace(['```html', '```'], '', $rawContent);
 
         } catch (\Exception $e) {
-            // Si falla, devolvemos un mensaje de error limpio para que no rompa la web
             return '<h1>Error al generar contenido</h1><p>Ocurrió un error conectando con la IA: '.$e->getMessage().'</p>';
         }
     }

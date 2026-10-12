@@ -147,6 +147,24 @@ class ProjectResource extends Resource
                     ])
                     ->collapsible() // Se puede cerrar
                     ->collapsed(),  // Cerrado por defecto para no estorbar
+
+                // SECCIÓN: MONITOREO SEO (GOOGLE SEARCH CONSOLE)
+                Forms\Components\Section::make('Monitoreo SEO (Google Search Console)')
+                    ->description('Conecta la propiedad de GSC para detectar oportunidades (quick-wins) automáticamente.')
+                    ->schema([
+                        Forms\Components\TextInput::make('gsc_property')
+                            ->label('Propiedad de Search Console')
+                            ->placeholder('sc-domain:tudominio.com  ó  https://tudominio.com/')
+                            ->helperText('Dominio: "sc-domain:tudominio.com". Prefijo de URL: la URL completa con la barra final. El service account debe tener acceso de lectura a esta propiedad.')
+                            ->columnSpanFull(),
+
+                        Forms\Components\Toggle::make('gsc_enabled')
+                            ->label('Monitoreo automático activo')
+                            ->helperText('Si está activo, el monitor semanal analizará esta propiedad y enviará el reporte.')
+                            ->default(false),
+                    ])
+                    ->collapsible()
+                    ->collapsed(),
             ]);
     }
 

@@ -17,11 +17,11 @@ class RunSeoScheduler extends Command
 
     public function handle(WordPressService $wpService)
     {
-        $this->info('🚀 Iniciando Motor Multi-Cliente (Gemini 2.0)...');
+        $this->info('🚀 Iniciando Motor Multi-Cliente (OpenRouter)...');
 
-        $apiKey = config('gemini.api_key');
+        $apiKey = config('services.openrouter.api_key');
         if (empty($apiKey)) {
-            $this->error('🚨 ERROR: Falta GEMINI_API_KEY en .env');
+            $this->error('🚨 ERROR: Falta OPENROUTER_API_KEY en .env');
             return;
         }
 
@@ -64,59 +64,43 @@ class RunSeoScheduler extends Command
                 \"content\": \"<p>Contenido HTML aquí...</p>\"
             }";
 
-            // LLAMADA A GEMINI 2.0 FLASH
-            $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+            // LLAMADA A LA IA (OpenRouter, servicio único)
+            $data = (new \App\Services\OpenRouterService)->generateJson($prompt, [
+                'system' => 'Responde exclusivamente con JSON válido.',
+            ]);
 
-            try {
-                $response = Http::withHeaders(['x-goog-api-key' => $apiKey])->post($url, [
-                    'contents' => [['parts' => [['text' => $prompt]]]]
-                ]);
-            } catch (\Exception $e) {
-                $this->error("❌ Error de conexión: " . $e->getMessage());
+            if (! $data || empty($data['title']) || empty($data['content'])) {
+                $this->error("❌ JSON inválido o sin respuesta de la IA.");
                 continue;
             }
 
-            if ($response->successful()) {
-                $rawText = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? '';
-                $cleanJson = str_replace(['```json', '```'], '', $rawText);
-                $data = json_decode($cleanJson, true);
+            $title = $data['title'];
+            $content = $data['content'];
 
-                if (!$data) {
-                    $this->error("❌ JSON inválido de la IA.");
-                    continue;
-                }
+            // Guardar
+            $article = Article::create([
+                'project_id' => $project->id,
+                'keyword' => 'Auto: ' . Str::limit($title, 15),
+                'title' => $title,
+                'slug' => Str::slug($title) . '-' . time(),
+                'html_content' => $content,
+                'status' => 'published'
+            ]);
 
-                $title = $data['title'];
-                $content = $data['content'];
+            $this->info("✅ Artículo Generado: {$title}");
 
-                // Guardar
-                $article = Article::create([
-                    'project_id' => $project->id,
-                    'keyword' => 'Auto: ' . Str::limit($title, 15),
-                    'title' => $title,
-                    'slug' => Str::slug($title) . '-' . time(),
-                    'html_content' => $content,
-                    'status' => 'published'
-                ]);
-
-                $this->info("✅ Artículo Generado: {$title}");
-
-                // Publicar
-                if ($project->integration_type === 'wordpress') {
-                    $wpService->publish($article, $project);
-                }
-
-                // Compartir en Facebook (el job no hace nada si el proyecto no tiene FB configurado)
-                PostToFacebookJob::dispatch($article->fresh())->onConnection('database');
-
-                // Reprogramar para mañana (todos los tipos de integración,
-                // si no, el proyecto se procesa en cada corrida y genera artículos sin límite)
-                $project->update(['next_run_at' => now()->addDay()]);
-                $this->info("📅 Próxima ejecución: Mañana");
-
-            } else {
-                $this->error("❌ Error Google: " . $response->body());
+            // Publicar
+            if ($project->integration_type === 'wordpress') {
+                $wpService->publish($article, $project);
             }
+
+            // Compartir en Facebook (el job no hace nada si el proyecto no tiene FB configurado)
+            PostToFacebookJob::dispatch($article->fresh())->onConnection('database');
+
+            // Reprogramar para mañana (todos los tipos de integración,
+            // si no, el proyecto se procesa en cada corrida y genera artículos sin límite)
+            $project->update(['next_run_at' => now()->addDay()]);
+            $this->info("📅 Próxima ejecución: Mañana");
         }
     }
 }
