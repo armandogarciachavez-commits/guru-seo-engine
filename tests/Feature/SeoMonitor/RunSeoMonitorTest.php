@@ -66,6 +66,30 @@ class RunSeoMonitorTest extends SeoMonitorTestCase
         });
     }
 
+    public function test_optimize_only_processes_new_and_marks_them_in_progress(): void
+    {
+        $this->fakeAi();
+        $project = $this->makeProject();
+
+        $inProgress = SeoOpportunity::create(['project_id' => $project->id, 'query' => 'trabajando', 'page' => 'https://demo.mx/t',
+            'status' => SeoOpportunity::STATUS_IN_PROGRESS, 'detected_at' => now()->subWeek()]);
+
+        $this->fakeGsc([
+            $this->row('trabajando', 'https://demo.mx/t'),
+            $this->row('nueva', 'https://demo.mx/n'),
+        ]);
+
+        $this->artisan('seo:monitor', ['--optimize' => true])->assertSuccessful();
+
+        $this->assertNull($inProgress->fresh()->ai_suggestions);
+        $this->assertSame(SeoOpportunity::STATUS_IN_PROGRESS, $inProgress->fresh()->status);
+
+        $nueva = SeoOpportunity::where('query', 'nueva')->first();
+        $this->assertSame('NUEVO', $nueva->ai_suggestions['title']);
+        $this->assertSame(SeoOpportunity::STATUS_IN_PROGRESS, $nueva->status);
+        Http::assertSentCount(1);
+    }
+
     public function test_failed_sync_does_not_report_stale_data(): void
     {
         Mail::fake();

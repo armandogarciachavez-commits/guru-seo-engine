@@ -19,3 +19,8 @@ Schedule::command('app:run-seo-scheduler')->dailyAt('08:30');
 Schedule::command('seo:monitor --optimize --email=seo@gurumkt.com.mx')
     ->weeklyOn(1, '07:00')
     ->withoutOverlapping();
+
+// Retención de gsc_metrics: borra lotes de más de 180 días (conserva el último por proyecto).
+Schedule::command('seo:prune-metrics --days=180')
+    ->weeklyOn(1, '06:30')
+    ->withoutOverlapping();

@@ -59,4 +59,35 @@ class QuickWinDetectorTest extends SeoMonitorTestCase
             $this->assertGreaterThan($d->expectedCtr($p + 1), $d->expectedCtr($p));
         }
     }
+
+    public function test_compares_ctr_against_expected_for_current_position(): void
+    {
+        $project = $this->makeProject();
+        // Pos. 10 espera ~2.6 %: 5 % ya rinde bien (antes se marcaba por estar bajo el 11 % de pos. 3).
+        $this->makeMetric($project, ['query' => 'rinde-bien', 'page' => 'https://demo.mx/1', 'position' => 10, 'ctr' => 0.05]);
+        $this->makeMetric($project, ['query' => 'rinde-mal', 'page' => 'https://demo.mx/2', 'position' => 10, 'ctr' => 0.01]);
+
+        $opps = (new QuickWinDetectorService)->detectForProject($project);
+
+        $this->assertSame(['rinde-mal'], array_column($opps, 'query'));
+        // Potencial estimado hacia la posición objetivo: 100 × (0.110 − 0.01) = 10
+        $this->assertSame(10, $opps[0]['potential_clicks']);
+    }
+
+    public function test_min_impressions_defaults_to_10_and_is_configurable_per_project(): void
+    {
+        $default = $this->makeProject();
+        $this->makeMetric($default, ['query' => 'nueve', 'page' => 'https://demo.mx/9', 'impressions' => 9]);
+        $this->makeMetric($default, ['query' => 'diez', 'page' => 'https://demo.mx/10', 'impressions' => 10]);
+
+        $custom = $this->makeProject(['gsc_min_impressions' => 50]);
+        $this->makeMetric($custom, ['query' => 'cuarenta', 'page' => 'https://demo.mx/40', 'impressions' => 40]);
+        $this->makeMetric($custom, ['query' => 'sesenta', 'page' => 'https://demo.mx/60', 'impressions' => 60]);
+
+        $detector = new QuickWinDetectorService;
+
+        $this->assertSame(10, QuickWinDetectorService::DEFAULT_MIN_IMPRESSIONS);
+        $this->assertSame(['diez'], array_column($detector->detectForProject($default), 'query'));
+        $this->assertSame(['sesenta'], array_column($detector->detectForProject($custom), 'query'));
+    }
 }

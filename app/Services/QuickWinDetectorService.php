@@ -12,20 +12,23 @@ use Illuminate\Support\Carbon;
  * datos de Google Search Console guardados en gsc_metrics.
  *
  * Criterio: keyword en posición media entre MIN y MAX (por defecto 5–15) con
- * impresiones suficientes y CTR por debajo del esperado para una buena posición
- * (metadato/contenido mejorable). Se prioriza por el potencial de clics extra.
+ * impresiones suficientes y CTR por debajo del esperado para SU posición actual
+ * (el snippet rinde menos de lo normal → metadato mejorable). El potencial de
+ * clics se estima contra la posición objetivo y define la prioridad.
  */
 class QuickWinDetectorService
 {
     public float $minPosition = 5.0;
+
     public float $maxPosition = 15.0;
+
+    public const DEFAULT_MIN_IMPRESSIONS = 10;
 
     /**
      * Impresiones mínimas en la ventana para considerar la oportunidad.
-     * 5 es un piso razonable para SEO local de bajo tráfico; súbelo para
-     * sitios grandes y evitar ruido.
+     * Cada proyecto puede sobreescribirlo con projects.gsc_min_impressions.
      */
-    public int $minImpressions = 5;
+    public int $minImpressions = self::DEFAULT_MIN_IMPRESSIONS;
 
     /** Posición "objetivo" alcanzable con optimización, para estimar el potencial. */
     public float $targetPosition = 3.0;
@@ -51,22 +54,23 @@ class QuickWinDetectorService
             ->whereNotNull('query')
             ->get();
 
+        $minImpressions = $project->gsc_min_impressions ?: $this->minImpressions;
+        $targetCtr = $this->expectedCtr($this->targetPosition);
         $opportunities = [];
 
         foreach ($metrics as $m) {
             if ($m->position < $this->minPosition || $m->position > $this->maxPosition) {
                 continue;
             }
-            if ($m->impressions < $this->minImpressions) {
+            if ($m->impressions < $minImpressions) {
                 continue;
             }
 
-            $targetCtr = $this->expectedCtr($this->targetPosition);
-            $gain = $targetCtr - (float) $m->ctr;
-
-            if ($gain <= 0) {
-                continue; // ya rinde igual o mejor que el objetivo
+            if ((float) $m->ctr >= $this->expectedCtr($m->position)) {
+                continue; // ya rinde igual o mejor que lo normal para su posición
             }
+
+            $gain = $targetCtr - (float) $m->ctr;
 
             $potentialClicks = (int) round($m->impressions * $gain);
             if ($potentialClicks < 1) {

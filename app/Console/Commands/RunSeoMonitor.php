@@ -114,12 +114,13 @@ class RunSeoMonitor extends Command
             ->where('detected_at', '>=', $runStartedAt)
             ->orderByDesc('priority_score');
 
-        // Fase 4: generar metadatos con IA para las top oportunidades sin sugerencia.
+        // Fase 4: generar metadatos con IA solo para oportunidades nuevas
+        // (al optimizarlas pasan a in_progress y no se vuelven a tocar).
         if ($this->option('optimize')) {
             $top = (int) $this->option('optimize-top');
             $this->line("   🤖 Generando metadatos con IA (top {$top})...");
 
-            $toOptimize = $current()->whereNull('ai_suggestions')->limit($top)->get();
+            $toOptimize = $current()->where('status', SeoOpportunity::STATUS_NEW)->limit($top)->get();
 
             foreach ($toOptimize as $opp) {
                 $sug = $optimizer->optimize($opp);
