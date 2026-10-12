@@ -114,7 +114,13 @@ class OpenRouterService
 
     public function extractJson(string $raw, ?string $expect = null): ?array
     {
-        $clean = str_replace(['```json', '```'], '', $raw);
+        $clean = trim(str_replace(['```json', '```'], '', $raw));
+
+        // Respuesta completa válida: respetar su estructura tal cual.
+        $whole = json_decode($clean, true);
+        if (is_array($whole)) {
+            return $whole;
+        }
 
         $pairs = [['{', '}'], ['[', ']']];
         if ($expect === 'list') {
@@ -145,6 +151,18 @@ class OpenRouterService
     {
         if (array_is_list($data)) {
             return $data;
+        }
+
+        // Objeto envoltorio: {"articles":[...]} o {"warnings":[],"articles":[...]}.
+        $isItemList = fn ($v) => is_array($v) && $v !== [] && array_is_list($v) && is_array($v[0]);
+
+        if (isset($data['articles']) && $isItemList($data['articles'])) {
+            return $data['articles'];
+        }
+
+        $lists = array_values(array_filter($data, $isItemList));
+        if (count($lists) === 1) {
+            return $lists[0];
         }
 
         if (count($data) === 1 && is_array(reset($data)) && array_is_list(reset($data))) {

@@ -34,6 +34,24 @@ class OpenRouterServiceTest extends TestCase
         $this->assertSame([['title' => 'A'], ['title' => 'B']], $plan);
     }
 
+    public function test_wrapper_with_several_arrays_picks_the_items_list(): void
+    {
+        $this->fakeAi('{"warnings":[],"articles":[{"title":"Dental care","keyword":"dentist"}]}');
+
+        $plan = (new OpenRouterService)->generateJson('x', ['expect' => 'list']);
+
+        $this->assertSame([['title' => 'Dental care', 'keyword' => 'dentist']], $plan);
+    }
+
+    public function test_wrapper_with_tags_before_items_picks_the_items_list(): void
+    {
+        $this->fakeAi('Plan: {"tags":["a","b"],"items":[{"title":"Uno"},{"title":"Dos"}]}');
+
+        $plan = (new OpenRouterService)->generateJson('x', ['expect' => 'list']);
+
+        $this->assertSame([['title' => 'Uno'], ['title' => 'Dos']], $plan);
+    }
+
     public function test_loose_object_becomes_single_item_list(): void
     {
         $this->fakeAi('Aquí está: {"title":"Solo","keyword":"k"}');
