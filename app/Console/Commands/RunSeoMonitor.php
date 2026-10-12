@@ -3,11 +3,14 @@
 namespace App\Console\Commands;
 
 use App\Jobs\SyncSearchConsoleJob;
+use App\Mail\SeoReportMail;
 use App\Models\Project;
 use App\Models\SeoOpportunity;
 use App\Services\OpportunityOptimizerService;
 use App\Services\QuickWinDetectorService;
+use App\Services\SearchConsoleService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Mail;
 
 /**
  * Orquesta el ciclo de monitoreo SEO:
@@ -22,7 +25,8 @@ class RunSeoMonitor extends Command
     protected $signature = 'seo:monitor
         {--project= : ID de un proyecto específico}
         {--optimize : Genera metadatos con IA para las top oportunidades (Fase 4)}
-        {--optimize-top=5 : Cuántas oportunidades optimizar por proyecto}';
+        {--optimize-top=5 : Cuántas oportunidades optimizar por proyecto}
+        {--email= : Envía el reporte por email (a esta dirección, o al email del proyecto)}';
 
     protected $description = 'Baja datos de Search Console y detecta oportunidades SEO (quick-wins)';
 
@@ -87,8 +91,32 @@ class RunSeoMonitor extends Command
                         $this->line("     title: {$sug['title']}");
                         $this->line("     meta:  {$sug['meta_description']}");
                     } else {
-                        $this->line("   • {$opp->query} — (no se pudo generar; revisa GEMINI_API_KEY)");
+                        $this->line("   • {$opp->query} — (no se pudo generar; reintentar o revisar OPENROUTER_API_KEY)");
                     }
+                }
+            }
+
+            // Fase 3: enviar el reporte por email.
+            if ($this->option('email') !== null) {
+                $to = $this->option('email') ?: $project->email;
+
+                if (empty($to)) {
+                    $this->warn('   ✉️  Sin destinatario (usa --email=correo o define el email del proyecto).');
+                } else {
+                    $window = SearchConsoleService::defaultWindow();
+                    $topOpps = SeoOpportunity::where('project_id', $project->id)
+                        ->orderByDesc('priority_score')
+                        ->limit(20)
+                        ->get();
+
+                    Mail::to($to)->send(new SeoReportMail(
+                        $project,
+                        $topOpps,
+                        $window['from'],
+                        $window['to']
+                    ));
+
+                    $this->info("   ✉️  Reporte enviado a {$to}");
                 }
             }
         }
