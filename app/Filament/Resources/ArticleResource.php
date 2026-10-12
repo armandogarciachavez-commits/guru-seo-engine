@@ -128,8 +128,6 @@ class ArticleResource extends Resource
                         $address = $project->address ?? 'No especificado';
 
                         try {
-                            $apiKey = config('gemini.api_key');
-                            
                             // --- 2. EL PROMPT MAESTRO ---
                            $prompt = "
 						ROL: Redactor SEO Senior experto en marketing local y copywriting de conversión.
@@ -197,21 +195,11 @@ class ArticleResource extends Resource
 						";
 
 
-                            $response = Http::withHeaders([
-        'Content-Type' => 'application/json',
-        'x-goog-api-key' => $apiKey,
-    ])
-    ->timeout(120)
-    ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent", [
-        'contents' => [['parts' => [['text' => $prompt]]]],
-        'generationConfig' => [
-            'temperature' => 0.5,
-            'topP' => 0.9,
-            'maxOutputTokens' => 2048
-        ]
-    ]);
-
-                            $content = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? null;
+                            $content = (new \App\Services\OpenRouterService)->generate($prompt, [
+                                'system' => 'Eres un redactor SEO senior. Devuelves solo HTML limpio, sin markdown ni backticks.',
+                                'temperature' => 0.5,
+                                'max_tokens' => 2048,
+                            ]);
 
                             if (!$content) throw new \Exception("La IA no devolvió texto.");
 

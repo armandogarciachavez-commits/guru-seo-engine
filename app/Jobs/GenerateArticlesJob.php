@@ -55,11 +55,7 @@ class GenerateArticlesJob implements ShouldQueue
         $postsA_Generar = $this->frequency * 4;
 
         try {
-            $apiKey = config('gemini.api_key');
-
             // 1. FASE DE PLANIFICACIÓN (Generar Títulos)
-            $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
-
             $prompt = "
                 ACTUA COMO: API JSON estricta.
                 CONTEXTO: {$strategyClean}
@@ -67,37 +63,13 @@ class GenerateArticlesJob implements ShouldQueue
                 REGLAS: RESPONDE ÚNICAMENTE CON UN ARRAY JSON: [{\"title\": \"Título\", \"keyword\": \"Keyword\"}]
             ";
 
-            $response = Http::withHeaders([
-                'Content-Type' => 'application/json',
-                'x-goog-api-key' => $apiKey,
-            ])
-                ->timeout(120)
-                ->post($url, [
-                    'contents' => [['parts' => [['text' => $prompt]]]],
-                    'generationConfig' => ['temperature' => 0.5],
-                ]);
-
-            // Validación de seguridad por si Gemini falla
-            if ($response->failed()) {
-                Log::error('PLANIFICADOR ERROR: Falló la conexión con Gemini. '.$response->body());
-
-                return;
-            }
-
-            $jsonRaw = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? '[]';
-            $jsonClean = str_replace(['```json', '```'], '', $jsonRaw);
-
-            // Extracción segura del JSON
-            $start = strpos($jsonClean, '[');
-            $end = strrpos($jsonClean, ']');
-            if ($start !== false && $end !== false) {
-                $jsonClean = substr($jsonClean, $start, $end - $start + 1);
-            }
-
-            $plan = json_decode($jsonClean, true);
+            $plan = (new \App\Services\OpenRouterService)->generateJson($prompt, [
+                'system' => 'Responde exclusivamente con JSON válido.',
+                'temperature' => 0.5,
+            ]);
 
             if (! is_array($plan) || empty($plan)) {
-                Log::error('PLANIFICADOR ERROR: JSON inválido recibido de la IA.');
+                Log::error('PLANIFICADOR ERROR: JSON inválido o sin respuesta de la IA.');
 
                 return;
             }

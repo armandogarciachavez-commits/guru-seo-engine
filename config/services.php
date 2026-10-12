@@ -32,6 +32,12 @@ return [
         'key' => env('PEXELS_API_KEY'),
     ],
 
+    // Motor de IA del sistema: OpenRouter (acceso único vía OpenRouterService).
+    'openrouter' => [
+        'api_key' => env('OPENROUTER_API_KEY'),
+        'model' => env('OPENROUTER_MODEL', 'openrouter/auto'),
+    ],
+
     // Google Search Console (monitoreo SEO vía service account).
     // GOOGLE_SERVICE_ACCOUNT_JSON: ruta al JSON de credenciales del service account.
     // Por defecto storage/app/google/service-account.json (fuera del docroot público).

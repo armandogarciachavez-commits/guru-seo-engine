@@ -46,8 +46,6 @@ class GenerateRadiographyJob implements ShouldQueue
         $ciudad = $this->project->target_city ?? 'Local';
 
         try {
-            $apiKey = config('gemini.api_key');
-            
             // 2. EL PROMPT MAESTRO (Tu prompt original)
             $prompt = "
                 ROL: Consultor de Marketing Digital de Alto Nivel.
@@ -69,18 +67,10 @@ class GenerateRadiographyJob implements ShouldQueue
                 4. <div class='grid grid-cols-2 gap-4'>... (Tarjetas para los Pilares de Contenido) ...</div>
             ";
 
-            // 3. Llamada a Gemini
-            $response = Http::withHeaders([
-                    'Content-Type' => 'application/json',
-                    'x-goog-api-key' => $apiKey,
-                ])
-                ->timeout(120)
-                ->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent", [
-                    'contents' => [['parts' => [['text' => $prompt]]]],
-                    'generationConfig' => ['temperature' => 0.5]
-                ]);
-
-            $aiReport = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? null;
+            // 3. Llamada a la IA vía OpenRouter (servicio único)
+            $aiReport = (new \App\Services\OpenRouterService)->generate($prompt, [
+                'temperature' => 0.5,
+            ]);
 
             if ($aiReport) {
                 // Limpiar markdown

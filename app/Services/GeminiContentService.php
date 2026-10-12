@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\Project;
-use Gemini\Laravel\Facades\Gemini;
 
 class GeminiContentService
 {
@@ -19,9 +18,12 @@ class GeminiContentService
     {
         $prompt = $this->buildPrompt($project, $keyword, $competitorData);
 
-        $result = Gemini::generativeModel('gemini-2.0-flash')->generateContent($prompt);
+        $content = (new OpenRouterService)->generate($prompt, [
+            'system' => 'Eres un redactor SEO experto. Devuelves HTML limpio.',
+            'temperature' => 0.7,
+        ]);
 
-        return $result->text();
+        return $content ?? '';
     }
 
     /**
