@@ -75,12 +75,28 @@ PROMPT;
         ];
 
         if ($persist) {
-            $opportunity->update([
-                'ai_suggestions' => $suggestions,
-                'status' => $opportunity->status === SeoOpportunity::STATUS_NEW
-                    ? SeoOpportunity::STATUS_IN_PROGRESS
-                    : $opportunity->status,
-            ]);
+            $readStatus = $opportunity->status;
+            $status = $readStatus === SeoOpportunity::STATUS_NEW
+                ? SeoOpportunity::STATUS_IN_PROGRESS
+                : $readStatus;
+
+            // Escritura condicionada al estado leído: si alguien la aplicó/descartó
+            // mientras respondía la IA, no se pisa su decisión.
+            $updated = SeoOpportunity::whereKey($opportunity->getKey())
+                ->where('status', $readStatus)
+                ->update([
+                    'ai_suggestions' => json_encode($suggestions),
+                    'status' => $status,
+                    'updated_at' => now(),
+                ]);
+
+            if ($updated === 0) {
+                Log::info('[SEO Optimizer] Oportunidad '.$opportunity->id.' cambió de estado durante la generación; no se guarda la sugerencia.');
+
+                return null;
+            }
+
+            $opportunity->forceFill(['ai_suggestions' => $suggestions, 'status' => $status])->syncOriginal();
         }
 
         return $suggestions;
