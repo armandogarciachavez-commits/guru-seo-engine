@@ -109,6 +109,42 @@ class Project extends Model
         return $this->hasMany(SeoOpportunity::class);
     }
 
+    /**
+     * Fecha del último escaneo SEO de este proyecto (máximo detected_at).
+     */
+    public function latestScanAt(): ?\Illuminate\Support\Carbon
+    {
+        $latest = $this->seoOpportunities()->max('detected_at');
+
+        return $latest ? \Illuminate\Support\Carbon::parse($latest) : null;
+    }
+
+    /**
+     * Oportunidades del último escaneo (el lote más reciente), ordenadas por
+     * prioridad. Todas las de una corrida comparten detected_at, así que el
+     * último lote es exactamente las de MAX(detected_at).
+     *
+     * @return \Illuminate\Support\Collection<int,\App\Models\SeoOpportunity>
+     */
+    public function latestScanOpportunities(): \Illuminate\Support\Collection
+    {
+        $latest = $this->seoOpportunities()->max('detected_at');
+
+        if (! $latest) {
+            return collect();
+        }
+
+        // Ventana de 5 min desde el máximo: las corridas nuevas comparten un solo
+        // detected_at, pero los datos previos al cambio lo tienen por fila (difieren
+        // en segundos). Las corridas semanales están a 7 días, así que no se mezclan.
+        $windowStart = \Illuminate\Support\Carbon::parse($latest)->subMinutes(5);
+
+        return $this->seoOpportunities()
+            ->where('detected_at', '>=', $windowStart)
+            ->orderByDesc('priority_score')
+            ->get();
+    }
+
     // Faltaba esta para saber quién es el dueño
     public function user(): BelongsTo
     {
