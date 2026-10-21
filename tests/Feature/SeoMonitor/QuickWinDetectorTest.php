@@ -22,6 +22,19 @@ class QuickWinDetectorTest extends SeoMonitorTestCase
         $this->assertSame(20, $opps[0]['potential_clicks']);
     }
 
+    public function test_short_ambiguous_queries_are_skipped(): void
+    {
+        $project = $this->makeProject();
+        // Acrónimo corto (navegacional/ambiguo) → se omite aunque tenga volumen.
+        $this->makeMetric($project, ['query' => 'cgb', 'position' => 8, 'impressions' => 300, 'ctr' => 0.0]);
+        // Keyword real → sí se detecta.
+        $this->makeMetric($project, ['query' => 'terracerias pavimentos', 'page' => 'https://demo.mx/t', 'position' => 8, 'impressions' => 200, 'ctr' => 0.0]);
+
+        $opps = (new QuickWinDetectorService)->detectForProject($project);
+
+        $this->assertSame(['terracerias pavimentos'], array_column($opps, 'query'));
+    }
+
     public function test_uses_only_latest_batch_and_orders_by_priority(): void
     {
         $project = $this->makeProject();

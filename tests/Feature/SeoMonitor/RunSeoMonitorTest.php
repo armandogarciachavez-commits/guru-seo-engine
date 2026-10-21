@@ -28,9 +28,13 @@ class RunSeoMonitorTest extends SeoMonitorTestCase
     protected function fakeAi(): void
     {
         config(['services.openrouter.api_key' => 'test-key']);
-        Http::fake(['openrouter.ai/*' => Http::response(['choices' => [['message' => [
-            'content' => '{"title":"NUEVO","meta_description":"meta nueva","notes":"n"}',
-        ]]]])]);
+        Http::fake([
+            'openrouter.ai/*' => Http::response(['choices' => [['message' => [
+                'content' => '{"title":"NUEVO","meta_description":"meta nueva","notes":"n"}',
+            ]]]]),
+            // Fetch del meta actual de la página que hace el optimizador.
+            '*' => Http::response('<html><head><title>Actual</title><meta name="description" content="Meta actual"></head></html>'),
+        ]);
     }
 
     public function test_weekly_run_does_not_touch_applied_or_dismissed_and_reports_only_current(): void
@@ -59,7 +63,7 @@ class RunSeoMonitorTest extends SeoMonitorTestCase
         $this->assertNull($dismissed->fresh()->ai_suggestions);
         $this->assertNull($stale->fresh()->ai_suggestions);
         $this->assertSame('NUEVO', SeoOpportunity::where('query', 'nueva')->first()->ai_suggestions['title']);
-        Http::assertSentCount(1);
+        Http::assertSentCount(2); // 1 fetch del meta de la página + 1 llamada a la IA
 
         Mail::assertSent(SeoReportMail::class, function (SeoReportMail $mail) {
             return $mail->opportunities->pluck('query')->all() === ['nueva'];
@@ -87,7 +91,7 @@ class RunSeoMonitorTest extends SeoMonitorTestCase
         $nueva = SeoOpportunity::where('query', 'nueva')->first();
         $this->assertSame('NUEVO', $nueva->ai_suggestions['title']);
         $this->assertSame(SeoOpportunity::STATUS_IN_PROGRESS, $nueva->status);
-        Http::assertSentCount(1);
+        Http::assertSentCount(2); // 1 fetch del meta de la página + 1 llamada a la IA
     }
 
     public function test_failed_sync_does_not_report_stale_data(): void

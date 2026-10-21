@@ -66,6 +66,10 @@ class QuickWinDetectorService
                 continue;
             }
 
+            if ($this->isLowValueQuery($m->query)) {
+                continue; // acrónimo/marca ambigua: no es un quick-win real
+            }
+
             if ((float) $m->ctr >= $this->expectedCtr($m->position)) {
                 continue; // ya rinde igual o mejor que lo normal para su posición
             }
@@ -121,6 +125,27 @@ class QuickWinDetectorService
      * CTR esperado (fracción 0-1) para una posición dada.
      * Curva aproximada basada en estudios públicos de CTR orgánico.
      */
+    /**
+     * Keywords de intención ambigua: un solo token muy corto (acrónimos como
+     * "cgb", "jp"). Suelen ser navegacionales/de marca o de otra entidad con el
+     * mismo acrónimo; su CTR bajo no se arregla cambiando el meta, así que no se
+     * consideran quick-wins.
+     */
+    protected function isLowValueQuery(string $query): bool
+    {
+        $q = trim($query);
+        $words = preg_split('/\s+/', $q, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        if (count($words) !== 1 || mb_strlen($q) > 4) {
+            return false;
+        }
+
+        // Token corto (<=4) SIN vocales → casi siempre un acrónimo o marca
+        // ("cgb", "jp", "kfc"). Las palabras reales cortas ("web", "spa", "ok")
+        // tienen vocales y se conservan.
+        return ! preg_match('/[aeiouáéíóúü]/iu', $q);
+    }
+
     public function expectedCtr(float $position): float
     {
         $curve = [

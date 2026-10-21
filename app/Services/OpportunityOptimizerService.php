@@ -32,6 +32,12 @@ class OpportunityOptimizerService
         $business = $project->business_name ?? $project->name ?? 'el negocio';
         $city = $project->target_city ?? $project->target_location ?? '';
 
+        // Contexto real: title/meta actuales de la página. Así la IA solo sugiere
+        // cambios si mejoran lo que ya existe (no propone un downgrade genérico).
+        $current = (new PageMetaFetcher)->fetch((string) $opportunity->page);
+        $currentTitle = $current['title'] ?? '(desconocido)';
+        $currentMeta = $current['description'] ?? '(desconocido)';
+
         $prompt = <<<PROMPT
 ACTUA COMO: API JSON estricta de SEO.
 
@@ -41,19 +47,27 @@ CONTEXTO:
 - Keyword objetivo: "{$opportunity->query}"
 - Página que rankea: {$opportunity->page}
 - Situación: la página aparece en posición {$opportunity->position} de Google con
-  buenas impresiones pero CTR muy bajo. El title/meta description no atrae clics.
+  buenas impresiones pero CTR muy bajo.
+
+META ACTUAL DE LA PÁGINA:
+- title actual: {$currentTitle}
+- meta description actual: {$currentMeta}
 
 TAREA:
-Genera un title y una meta description optimizados para subir el CTR de esa keyword.
+Primero EVALÚA el meta actual. Si ya incluye la keyword de forma natural y tiene
+un gancho/beneficio claro (ya está bien optimizado), NO lo cambies.
 
 REGLAS:
-- title: máximo 60 caracteres, incluye la keyword de forma natural y un gancho.
-- meta_description: 140-155 caracteres, incluye la keyword, un beneficio claro y un llamado a la acción.
-- Español neutro. Sin comillas tipográficas. No inventes datos (precios, premios).
-- notes: 1 frase explicando por qué este title/meta mejoraría el CTR.
+- Si el meta actual YA es bueno, responde exactamente:
+  {"keep_current": true, "reason": "<1 frase: por qué el meta actual ya es adecuado>"}
+- Solo si el meta actual es débil, genérico o le falta la keyword, genera uno mejor:
+  - title: máximo 60 caracteres, incluye la keyword de forma natural y un gancho.
+  - meta_description: 140-155 caracteres, con la keyword, un beneficio claro y un CTA.
+  - Español neutro. Sin comillas tipográficas. No inventes datos (precios, premios).
+  - notes: 1 frase explicando por qué mejora el CTR frente al actual.
+  Responde: {"title": "...", "meta_description": "...", "notes": "..."}
 
-RESPONDE ÚNICAMENTE CON ESTE JSON (sin markdown, sin backticks):
-{"title": "...", "meta_description": "...", "notes": "..."}
+RESPONDE ÚNICAMENTE CON JSON (sin markdown, sin backticks).
 PROMPT;
 
         $data = (new OpenRouterService)->generateJson($prompt, [
@@ -62,17 +76,25 @@ PROMPT;
             'timeout' => 90,
         ]);
 
-        if (! is_array($data) || empty($data['title']) || empty($data['meta_description'])) {
+        if (is_array($data) && ! empty($data['keep_current'])) {
+            // La IA considera que el meta actual ya es adecuado: no proponer cambios.
+            $suggestions = [
+                'title' => $current['title'] ?? '',
+                'meta_description' => $current['description'] ?? '',
+                'notes' => trim('La IA considera que el meta actual ya está bien optimizado. '.($data['reason'] ?? '')),
+                'keep_current' => true,
+            ];
+        } elseif (is_array($data) && ! empty($data['title']) && ! empty($data['meta_description'])) {
+            $suggestions = [
+                'title' => trim($data['title']),
+                'meta_description' => trim($data['meta_description']),
+                'notes' => trim($data['notes'] ?? ''),
+            ];
+        } else {
             Log::error('[SEO Optimizer] Respuesta inválida de la IA para oportunidad '.$opportunity->id);
 
             return null;
         }
-
-        $suggestions = [
-            'title' => trim($data['title']),
-            'meta_description' => trim($data['meta_description']),
-            'notes' => trim($data['notes'] ?? ''),
-        ];
 
         if ($persist) {
             $readStatus = $opportunity->status;
