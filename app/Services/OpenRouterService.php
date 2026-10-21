@@ -58,7 +58,19 @@ class OpenRouterService
                 'X-Title' => config('app.name', 'Guru SEO'),
                 'Content-Type' => 'application/json',
             ])
+                ->connectTimeout(15)
                 ->timeout($opts['timeout'] ?? 120)
+                // Reintentos ante lentitud/caída transitoria de la API (p.ej. cURL 28
+                // timeout): hasta 3 intentos con 2s de espera. Evita que un timeout deje
+                // sin optimizar justo las oportunidades de mayor prioridad.
+                ->retry(3, 2000, function (\Throwable $e) {
+                    $retry = $e instanceof \Illuminate\Http\Client\ConnectionException;
+                    if ($retry) {
+                        Log::warning('[OpenRouter] Timeout/conexión; reintentando: '.$e->getMessage());
+                    }
+
+                    return $retry;
+                }, throw: false)
                 ->post($this->endpoint, $payload);
 
             if ($response->failed()) {

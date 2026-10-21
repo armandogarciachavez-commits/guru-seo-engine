@@ -59,7 +59,7 @@ PROMPT;
         $data = (new OpenRouterService)->generateJson($prompt, [
             'system' => 'Eres un experto SEO. Respondes exclusivamente con JSON válido.',
             'temperature' => 0.6,
-            'timeout' => 60,
+            'timeout' => 90,
         ]);
 
         if (! is_array($data) || empty($data['title']) || empty($data['meta_description'])) {

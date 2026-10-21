@@ -87,4 +87,42 @@ class OpenRouterServiceTest extends TestCase
         config(['services.openrouter.api_key' => null]);
         $this->assertNull((new OpenRouterService)->generate('x'));
     }
+
+    public function test_retries_on_connection_timeout_then_succeeds(): void
+    {
+        config(['services.openrouter.api_key' => 'test-key']);
+
+        $attempts = 0;
+        Http::fake(function () use (&$attempts) {
+            $attempts++;
+            if ($attempts < 3) {
+                throw new \Illuminate\Http\Client\ConnectionException('cURL error 28: Operation timed out');
+            }
+
+            return Http::response([
+                'choices' => [['finish_reason' => 'stop', 'message' => ['content' => 'Listo']]],
+            ]);
+        });
+
+        $result = (new OpenRouterService)->generate('x');
+
+        $this->assertSame('Listo', $result);
+        $this->assertSame(3, $attempts, 'Debió reintentar hasta tener respuesta.');
+    }
+
+    public function test_persistent_timeout_returns_null_after_retries(): void
+    {
+        config(['services.openrouter.api_key' => 'test-key']);
+
+        $attempts = 0;
+        Http::fake(function () use (&$attempts) {
+            $attempts++;
+            throw new \Illuminate\Http\Client\ConnectionException('cURL error 28: Operation timed out');
+        });
+
+        $result = (new OpenRouterService)->generate('x');
+
+        $this->assertNull($result);
+        $this->assertSame(3, $attempts, 'Debió agotar los 3 intentos y rendirse con null.');
+    }
 }
