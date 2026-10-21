@@ -103,6 +103,11 @@ class QuickWinDetectorService
         usort($opportunities, fn ($a, $b) => $b['priority_score'] <=> $a['priority_score']);
 
         if ($persist) {
+            // Un solo timestamp para todo el escaneo: así todas las oportunidades
+            // de esta corrida comparten detected_at y se pueden agrupar como un
+            // "último lote" exacto (lo usa Project::latestScanOpportunities()).
+            $detectedAt = Carbon::now();
+
             foreach ($opportunities as $opp) {
                 SeoOpportunity::updateOrCreate(
                     [
@@ -111,8 +116,7 @@ class QuickWinDetectorService
                         'page' => $opp['page'],
                     ],
                     array_merge($opp, [
-                        // No pisar un estado de trabajo manual si ya existía.
-                        'detected_at' => Carbon::now(),
+                        'detected_at' => $detectedAt,
                     ])
                 );
             }
